@@ -57,6 +57,19 @@ h3 { font-size: 14px; margin: 0 0 8px; color: var(--ink-2); font-weight: 600; }
 .ver .kv { display: flex; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
 .ver .kv b { color: var(--ink); font-size: 16px; display: block; font-variant-numeric: tabular-nums; }
 
+.ingr-row { display: grid; grid-template-columns: repeat(var(--n), minmax(220px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.ingr .v { font-size: 12px; color: var(--accent-ink); font-weight: 600; }
+.ingr .nm { font-weight: 600; font-size: 14px; margin: 2px 0 0; }
+.ingr .dt { font-size: 12px; color: var(--muted); }
+.ingr h4 { margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-2); font-weight: 600;
+  border-bottom: 1px solid var(--grid); padding-bottom: 3px; display: flex; justify-content: space-between; }
+.ingr h4 .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.ingr ul { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.ingr li { display: grid; grid-template-columns: 56px 1fr; gap: 8px; padding: 2px 0; }
+.ingr li .q { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
+.ingr li.st { display: block; margin-top: 6px; font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.ingr li.st:first-child { margin-top: 0; }
+.ingr .muted { color: var(--muted); }
 .step-h { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: 10px; }
 .step-h .t { font-weight: 600; font-size: 15px; }
 .step-h .gap { color: var(--muted); font-size: 12px; }
@@ -234,6 +247,7 @@ function render() {
   $('#fams').innerHTML = fams.map(f => `<button type="button" data-fam="${slug(f.name)}" aria-current="${f === fam}">${esc(f.name)}<span>${f.nos.length}</span></button>`).join('');
   const V = fam.nos.map(n => BY[n]);
   let h = timeline(V);
+  h += ingredientLists(V);
   h += '<h2>What changed each time</h2><div class="stack">';
   for (let i = 1; i < V.length; i++) h += stepCard(V[i - 1], V[i], i);
   h += '</div>';
@@ -248,6 +262,24 @@ function timeline(V) {
     <div class="dt">${dateNice(b.date)} · ${esc(b.style)}</div>
     <div class="kv"><span><b>${fmt(b.abv)}%</b>ABV</span><span><b>${fmt(b.ibu, 0)}</b>IBU</span><span><b>${fmt(sum(b.hops, x => x.g) / b.size, 1)}</b>hops g/L</span>${ok(b.rating) ? `<span><b>${b.rating}</b>rating</span>` : ''}</div>
   </div>`).join('') + '</div>';
+}
+/* Plain ingredient list per version (malt and hops only), side by side. */
+function ingredientLists(V) {
+  const cols = V.map((b, i) => {
+    const malt = [...b.ferms].sort((x, y) => y.kg - x.kg)
+      .map(f => `<li><span class="q">${fmt(f.kg, 2)} kg</span><span>${esc(f.name)}</span></li>`).join('');
+    const hopsByStage = STAGES.map(st => {
+      const list = b.hops.filter(x => x.stage === st)
+        .sort((x, y) => st === 'Dry hop' ? (x.day || 0) - (y.day || 0) : (y.time || 0) - (x.time || 0));
+      if (!list.length) return '';
+      return `<li class="st"><i class="dotk" style="background:var(${STAGE_VAR[st]})"></i>${st}</li>` +
+        list.map(x => `<li><span class="q">${fmt(x.g, 0)} g</span><span>${esc(x.name)}${hopTiming(x) ? ` <span class="muted">${esc(hopTiming(x))}</span>` : ''}</span></li>`).join('');
+    }).join('');
+    return `<div class="card ingr"><div class="v">V${i + 1} · #${b.no}</div><div class="nm">${esc(b.name)}</div><div class="dt">${dateNice(b.date)}</div>
+      <h4>Malt <span class="muted">${fmt(b.grainKg, 2)} kg</span></h4><ul>${malt || '<li class="muted">None</li>'}</ul>
+      <h4>Hops <span class="muted">${fmt(sum(b.hops, x => x.g), 0)} g</span></h4><ul>${hopsByStage || '<li class="muted">None</li>'}</ul></div>`;
+  }).join('');
+  return `<h2>Ingredients</h2><div class="ingr-row" style="--n:${V.length}">${cols}</div>`;
 }
 function stepCard(A, B, i) {
   const g = diff(A, B);

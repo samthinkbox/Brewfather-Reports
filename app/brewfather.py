@@ -1,6 +1,6 @@
 """Minimal Brewfather API v2 client (standard library only).
 
-Credentials are read from .env next to this file:
+Credentials are read from .env in the project folder:
     BREWFATHER_USER_ID=...
     BREWFATHER_API_KEY=...
 """
@@ -14,9 +14,12 @@ import urllib.request
 
 BASE = "https://api.brewfather.app/v2"
 HERE = os.path.dirname(os.path.abspath(__file__))
+import sys  # noqa: E402
+sys.path.insert(0, HERE)
+import paths  # noqa: E402
 
 
-def load_env(path=os.path.join(HERE, ".env")):
+def load_env(path=paths.ENV):
     env = {}
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:

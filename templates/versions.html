@@ -241,7 +241,7 @@ function diff(A, B) {
 /* ------------------------------------------------------------ rendering */
 function render() {
   const fams = D.families;
-  if (!fams.length) { $('#view').innerHTML = '<p class="note">No recipe families found. Add some to families.txt.</p>'; return; }
+  if (!fams.length) { $('#view').innerHTML = '<p class="note">No recipe families found. Add some on the Admin page (config/families.txt).</p>'; return; }
   const want = decodeURIComponent(location.hash.slice(1));
   const fam = fams.find(f => slug(f.name) === want) || fams[0];
   $('#fams').innerHTML = fams.map(f => `<button type="button" data-fam="${slug(f.name)}" aria-current="${f === fam}">${esc(f.name)}<span>${f.nos.length}</span></button>`).join('');
@@ -397,7 +397,7 @@ $('#fams').addEventListener('click', e => {
 });
 addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
 $('#subtitle').innerHTML = `How each recipe changed from one brew to the next. ${D.families.length} recipe families.`;
-$('#gen').textContent = `Generated ${D.generated} from the Brewfather API. Families are set on the Admin page (families.txt).`;
+$('#gen').textContent = `Generated ${D.generated} from the Brewfather API. Families are set on the Admin page (config/families.txt).`;
 render();
 </script>
 </body>

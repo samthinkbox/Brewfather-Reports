@@ -2,8 +2,13 @@
 import json
 import os
 
+import sys
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-PATH = os.path.join(HERE, "data", "settings.json")
+sys.path.insert(0, HERE)
+import paths  # noqa: E402
+
+PATH = os.path.join(paths.DATA, "settings.json")
 
 DEFAULTS = {
     "site_title": "Brewfather Reports",

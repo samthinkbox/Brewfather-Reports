@@ -7,18 +7,19 @@ scores weighted by grams, counting only the flavour and aroma additions:
     whirlpool and dry hop x1, late boil (under 30 min) x0.5, bittering left out.
 
 Hops that are missing from HopDatabase, or have no aroma scores there, can be added or
-overridden in hop_flavours_extra.json next to this file.
+overridden in config/hop_flavours_extra.json.
 """
 import json
 import os
 import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-HOPDB = os.path.join(HERE, "hopdata", "hops.json")  # copy of HopDatabase's website/public/data/hops.json
-if not os.path.exists(HOPDB):
-    HOPDB = os.path.join(HERE, "HopDatabase", "website", "public", "data", "hops.json")
+import sys  # noqa: E402
+sys.path.insert(0, HERE)
+import paths  # noqa: E402
+HOPDB = os.path.join(paths.HOPDATA, "hops.json")  # copy of HopDatabase's website/public/data/hops.json
 HOPDB_URL = "https://raw.githubusercontent.com/kasperg3/HopDatabase/main/website/public/data/hops.json"
-EXTRA = os.path.join(HERE, "hop_flavours_extra.json")
+EXTRA = paths.config("hop_flavours_extra.json")
 
 AROMAS = ["Citrus", "Resin/Pine", "Spice", "Herbal", "Grassy", "Floral", "Berry", "Stone Fruit", "Tropical Fruit"]
 STAGE_WEIGHT = {"Whirlpool": 1.0, "Dry hop": 1.0, "Late boil": 0.5}
@@ -94,7 +95,7 @@ def update_from_github():
         data = json.loads(r.read().decode("utf-8"))
     if not isinstance(data, list) or len(data) < 50 or not all(isinstance(h, dict) and "name" in h and "aromas" in h for h in data):
         raise ValueError("The downloaded file doesn't look like HopDatabase hop data; nothing was changed.")
-    path = os.path.join(HERE, "hopdata", "hops.json")
+    path = HOPDB
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -107,10 +108,10 @@ def update_from_github():
 def info():
     path = HOPDB if os.path.exists(HOPDB) else None
     db = load_db()
-    return {"hops": len(db["hops"]), "file": os.path.relpath(path, HERE) if path else None,
+    return {"hops": len(db["hops"]), "file": os.path.relpath(path, paths.ROOT) if path else None,
             "updated": os.path.getmtime(path) if path else None}
 
 
 def radar_js():
-    with open(os.path.join(HERE, "hop_radar.js"), encoding="utf-8") as f:
+    with open(paths.template("hop_radar.js"), encoding="utf-8") as f:
         return f.read()

@@ -1,6 +1,6 @@
 # Running Brewfather Reports on a public web server
 
-The built-in server (`server.py`) speaks plain HTTP. On the internet, run it behind a web server that
+The built-in server (`app/server.py`) speaks plain HTTP. On the internet, run it behind a web server that
 handles HTTPS, and let it listen only on the machine itself (127.0.0.1). Each installation serves one
 Brewfather account.
 
@@ -9,7 +9,7 @@ Brewfather account.
 ```
 unzip brewfather-reports-1.0.0.zip -d /opt
 cd /opt/brewfather-reports-1.0.0
-python3 server.py --proxy --port 8765
+python3 app/server.py --proxy --port 8765
 ```
 
 `--proxy` tells it to trust the `X-Forwarded-For` and `X-Forwarded-Proto` headers from your web server,
@@ -58,7 +58,7 @@ After=network-online.target
 
 [Service]
 WorkingDirectory=/opt/brewfather-reports-1.0.0
-ExecStart=/usr/bin/python3 server.py --proxy --port 8765
+ExecStart=/usr/bin/python3 app/server.py --proxy --port 8765
 User=brewreports
 Restart=on-failure
 
@@ -69,14 +69,14 @@ WantedBy=multi-user.target
 Then run `sudo systemctl enable --now brewfather-reports`. To see the setup code, run `journalctl -u brewfather-reports`.
 Run it as its own user, and make sure only that user can read `.env` and `data/`.
 
-**Windows:** create a Task Scheduler task "At startup" that runs `python server.py --proxy` in the folder, or use NSSM
+**Windows:** create a Task Scheduler task "At startup" that runs `python app/server.py --proxy` in the folder, or use NSSM
 to install it as a service.
 
 ## 4. Updating to a new version
 
 1. Stop the server.
-2. Unzip the new version over the old folder. The package doesn't contain `.env`, `data/`, `exclude.txt` or
-   `families.txt`, so yours are kept. It does contain `hop_flavours_extra.json`, so if you have edited that file,
+2. Unzip the new version over the old folder. The package doesn't contain `.env`, `data/`, `config/exclude.txt` or
+   `config/families.txt`, so yours are kept. It does contain `config/hop_flavours_extra.json`, so if you have edited that file,
    back it up first.
 3. Start the server again, then click **Rebuild pages from saved data** on the Admin page.
 

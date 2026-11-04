@@ -10,7 +10,7 @@ Brewfather API key, and your data stays there.
 
 1. Install Python 3.9 or newer (python.org). Nothing else is needed: it uses only Python's standard library.
 2. Unzip the package somewhere, for example `Documents/Brewfather Reports`.
-3. Start it: double-click `start.bat` (Windows), or run `./start.sh` (Mac/Linux), or `python server.py`.
+3. Start it: double-click `start.bat` (Windows), or run `./start.sh` (Mac/Linux), or `python app/server.py`.
 4. Open http://localhost:8765/admin.html. The first time, it asks for:
    - the **setup code** shown in the server window,
    - your **Brewfather User ID and API key** (Brewfather › Settings › API › Generate key; give it read access
@@ -19,7 +19,7 @@ Brewfather API key, and your data stays there.
 
 It then downloads your brews and builds the pages. Keep the server window open while you use it.
 
-To run it on a public web server, see [DEPLOY.md](DEPLOY.md).
+To run it on a public web server, see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Pages
 
@@ -72,34 +72,39 @@ Brewfather app. Brewfather's API can't upload images.
 ## Command line
 
 ```
-python server.py                  # the web server (Admin page and reports)
-python run.py                     # fetch from Brewfather and build the pages without the server
-python run.py --offline           # rebuild from the saved data
-python run.py --update-hops       # download the latest HopDatabase hop data first
+python app/server.py              # the web server (Admin page and reports); start.bat / start.sh run this
+python app/run.py                 # fetch from Brewfather and build the pages without the server
+python app/run.py --offline       # rebuild from the saved data
+python app/run.py --update-hops   # download the latest HopDatabase hop data first
 ```
 
-## Files
+## Folders
 
-| File | What it is |
+| Folder or file | What it is |
 |---|---|
+| `start.bat`, `start.sh` | Start the server (Windows, Mac/Linux). |
+| `app/` | The Python program. `paths.py` says where everything lives. |
+| `templates/` | The page templates (Brew History, Recipe versions, Admin, Terms) and the hop chart script. |
+| `config/` | Files you edit, also editable on the Admin page: `exclude.txt` (brews left out), `families.txt` (recipe families), `hop_flavours_extra.json` (extra hop flavours). |
+| `hopdata/` | Hop aroma data from HopDatabase (MIT licence). |
+| `docs/` | Running it on a public web server ([DEPLOY.md](docs/DEPLOY.md)). |
+| `tools/` | Building the installable package. |
 | `.env` | Your Brewfather User ID and API key (written by the Admin page). Keep it private. |
 | `data/` | Downloaded brews, settings and the admin password hash. Back it up; never share it. |
 | `output/` | The built pages. |
-| `hopdata/` | Hop aroma data from HopDatabase (MIT licence). |
-| `exclude.txt`, `families.txt`, `hop_flavours_extra.json` | Your settings, also editable on the Admin page. |
 
 Colours are shown in EBC (Brewfather stores SRM; EBC = SRM × 1.97).
 
 ## Next Brew (optional, personal)
 
-`next_brew.py` builds recipe ideas from your own brews and can create them in Brewfather
-(`python next_brew.py --upload`). Its recipes, water profile and template recipe are set up for one
+`app/next_brew.py` builds recipe ideas from your own brews and can create them in Brewfather
+(`python app/next_brew.py --upload`). Its recipes, water profile and template recipe are set up for one
 brewer, so it is not included in the package. Turn the page on in Admin › Settings once you have adapted it.
 
 ## Building the package
 
-`python build_package.py` writes `dist/brewfather-reports-<version>.zip`. It leaves out `.env`, `data/`,
-`output/` and `next_brew.py`. The version number is in `version.py`.
+`python tools/build_package.py` writes `dist/brewfather-reports-<version>.zip`. It leaves out `.env`, `data/`,
+`output/`, `next_brew.py` and your `exclude.txt` and `families.txt`. The version number is in `app/version.py`.
 
 
 ## Shutting app down

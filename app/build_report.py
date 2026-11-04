@@ -13,15 +13,16 @@ from datetime import datetime, timezone
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import hop_flavour  # noqa: E402
+import paths  # noqa: E402
 import layout  # noqa: E402
 import settings  # noqa: E402
-DATA = os.path.join(HERE, "data", "batches.json")
-OUT = os.path.join(HERE, "output")
-TEMPLATE = os.path.join(HERE, "report_template.html")
+DATA = paths.BATCHES
+OUT = paths.OUTPUT
+TEMPLATE = paths.template("report.html")
 
 SRM_TO_EBC = 1.97
 
-EXCLUDE_FILE = os.path.join(HERE, "exclude.txt")
+EXCLUDE_FILE = paths.config("exclude.txt")
 NOREPORT = re.compile(r"#\s*no-?report", re.I)
 
 
@@ -451,8 +452,8 @@ def write_html(brews, sources=None):
     return path
 
 
-FAMILIES_FILE = os.path.join(HERE, "families.txt")
-VERSIONS_TEMPLATE = os.path.join(HERE, "versions_template.html")
+FAMILIES_FILE = paths.config("families.txt")
+VERSIONS_TEMPLATE = paths.template("versions.html")
 
 
 def load_families(path=FAMILIES_FILE):

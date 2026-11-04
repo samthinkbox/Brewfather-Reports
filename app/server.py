@@ -1,9 +1,9 @@
 """Brewfather Reports web server: the report pages plus the Admin page.
 
-    python server.py                         # http://127.0.0.1:8765
-    python server.py --port 8080
-    python server.py --proxy                 # behind nginx/Caddy/IIS: trust X-Forwarded-For and -Proto
-    python server.py --host 0.0.0.0          # listen on every network interface (use HTTPS in front of it)
+    python app/server.py                         # http://127.0.0.1:8765
+    python app/server.py --port 8080
+    python app/server.py --proxy                 # behind nginx/Caddy/IIS: trust X-Forwarded-For and -Proto
+    python app/server.py --host 0.0.0.0          # listen on every network interface (use HTTPS in front of it)
 
 Standard library only. The first time it runs (no admin password yet) it prints a one-time
 setup code. Open /admin.html, enter the code, your Brewfather User ID and API key, and choose
@@ -29,16 +29,18 @@ sys.path.insert(0, HERE)
 import build_report  # noqa: E402
 import hop_flavour  # noqa: E402
 import layout  # noqa: E402
+import paths  # noqa: E402
 import settings  # noqa: E402
 import version  # noqa: E402
 from brewfather import Brewfather, load_env  # noqa: E402
 
-OUT = os.path.join(HERE, "output")
-DATA = os.path.join(HERE, "data")
+ROOT = paths.ROOT
+OUT = paths.OUTPUT
+DATA = paths.DATA
 ADMIN_FILE = os.path.join(DATA, "admin.json")
-ENV_FILE = os.path.join(HERE, ".env")
-BATCHES = os.path.join(DATA, "batches.json")
-UPLOADED = os.path.join(HERE, "Next Brew", "uploaded.json")
+ENV_FILE = paths.ENV
+BATCHES = paths.BATCHES
+UPLOADED = os.path.join(paths.NEXT_BREW_DIR, "uploaded.json")
 SESSION_SECONDS = 12 * 3600
 COOKIE = "bfr_session"
 EDITABLE = {"families.txt": "text", "exclude.txt": "text", "hop_flavours_extra.json": "json"}
@@ -48,10 +50,10 @@ CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 
        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 PY = [sys.executable, "-I"]
 JOBS = {
-    "refresh": ("Fetch from Brewfather and rebuild", PY + ["run.py"]),
-    "rebuild": ("Rebuild pages from saved data", PY + ["run.py", "--offline"]),
-    "hops": ("Update hop data and rebuild", PY + ["run.py", "--offline", "--update-hops"]),
-    "upload": ("Send Next Brew recipes to Brewfather", PY + ["next_brew.py", "--upload"]),
+    "refresh": ("Fetch from Brewfather and rebuild", PY + [paths.app("run.py")]),
+    "rebuild": ("Rebuild pages from saved data", PY + [paths.app("run.py"), "--offline"]),
+    "hops": ("Update hop data and rebuild", PY + [paths.app("run.py"), "--offline", "--update-hops"]),
+    "upload": ("Send Next Brew recipes to Brewfather", PY + [paths.app("next_brew.py"), "--upload"]),
 }
 
 LOCK = threading.Lock()
@@ -157,7 +159,7 @@ def pw_problem(pw):
 def start_job(name):
     if name not in JOBS:
         return "Unknown action."
-    if name == "upload" and not os.path.exists(os.path.join(HERE, "next_brew.py")):
+    if name == "upload" and not os.path.exists(paths.app("next_brew.py")):
         return "Next Brew isn't set up in this installation."
     if name in ("refresh", "upload") and not all(creds()):
         return "Add your Brewfather User ID and API key first."
@@ -174,7 +176,7 @@ def _run_job(cmd):
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     ok = False
     try:
-        p = subprocess.Popen(cmd, cwd=HERE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
+        p = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
                              text=True, encoding="utf-8", errors="replace")
         for line in p.stdout:
             with LOCK:
@@ -204,7 +206,7 @@ def scheduler():
 
 
 # ------------------------------------------------------------------ exclusions
-EXCLUDE = os.path.join(HERE, "exclude.txt")
+EXCLUDE = paths.config("exclude.txt")
 EXCLUDE_HEADER = ("# Batches to leave out of the reports (and the CSVs).\n"
                   "# One batch number per line. Anything after the number is just a note for you.\n"
                   "# Lines starting with # are ignored. You can also add #noreport to a batch note in Brewfather.\n\n")
@@ -264,7 +266,7 @@ def status(logged_in):
         "data": {"batches": len(batches), "fetched": mtime(BATCHES), "built": mtime(os.path.join(OUT, "report.html"))},
         "hops": hop_flavour.info(),
         "waterSources": sources,
-        "nextBrew": {"available": os.path.exists(os.path.join(HERE, "next_brew.py")), "uploaded": uploaded},
+        "nextBrew": {"available": os.path.exists(paths.app("next_brew.py")), "uploaded": uploaded},
         "downloads": [n for n in ("brews.csv", "hops.csv", "malts.csv") if os.path.exists(os.path.join(OUT, n))],
         "job": job_view(tail=True),
     })
@@ -390,7 +392,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             name = (q.get("name") or [""])[0]
             if name not in EDITABLE:
                 return self.err("Unknown file.", 404)
-            p = os.path.join(HERE, name)
+            p = paths.config(name)
             text = open(p, encoding="utf-8").read() if os.path.exists(p) else ""
             return self.json({"name": name, "content": text})
         if path == "/api/download/batches.json":
@@ -529,7 +531,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     json.loads(content)
                 except ValueError as e:
                     return self.err(f"That isn't valid JSON: {e}")
-            with open(os.path.join(HERE, name), "w", encoding="utf-8") as f:
+            os.makedirs(paths.CONFIG, exist_ok=True)
+            with open(paths.config(name), "w", encoding="utf-8") as f:
                 f.write(content.replace("\r\n", "\n"))
             if os.path.exists(BATCHES):
                 start_job("rebuild")

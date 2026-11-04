@@ -7,11 +7,11 @@ import html as _html
 import os
 import re
 
+import paths
 import settings
 import version
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "output")
+OUT = paths.OUTPUT
 
 CSS = """
 .site-head { background: var(--surface, #fcfcfb); border-bottom: 1px solid var(--border, rgba(11,11,11,.1)); }
@@ -40,7 +40,7 @@ HOP_ICON = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-w
 def pages():
     s = settings.load()
     p = [("report.html", "Brew History"), ("versions.html", "Recipe versions")]
-    if s.get("next_brew") and os.path.exists(os.path.join(HERE, "next_brew.py")):
+    if s.get("next_brew") and os.path.exists(paths.app("next_brew.py")):
         p.append(("next_brew.html", "Next Brew"))
     p.append(("admin.html", "Admin"))
     return p
@@ -107,15 +107,15 @@ def markdown(text):
 
 def write_static_pages():
     os.makedirs(OUT, exist_ok=True)
-    with open(os.path.join(HERE, "admin_template.html"), encoding="utf-8") as f:
+    with open(paths.template("admin.html"), encoding="utf-8") as f:
         admin = f.read()
     with open(os.path.join(OUT, "admin.html"), "w", encoding="utf-8") as f:
         f.write(apply(admin, "admin.html"))
-    with open(os.path.join(HERE, "TERMS.md"), encoding="utf-8") as f:
+    with open(os.path.join(paths.ROOT, "TERMS.md"), encoding="utf-8") as f:
         terms = markdown(f.read())
-    with open(os.path.join(HERE, "LICENSE"), encoding="utf-8") as f:
+    with open(os.path.join(paths.ROOT, "LICENSE"), encoding="utf-8") as f:
         lic = _html.escape(f.read())
-    with open(os.path.join(HERE, "terms_template.html"), encoding="utf-8") as f:
+    with open(paths.template("terms.html"), encoding="utf-8") as f:
         tpl = f.read()
     page = tpl.replace("<!--__TERMS__-->", terms).replace("<!--__LICENSE__-->", lic)
     with open(os.path.join(OUT, "terms.html"), "w", encoding="utf-8") as f:

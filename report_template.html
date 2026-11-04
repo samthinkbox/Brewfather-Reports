@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brew History</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --hover: rgba(11,11,11,0.04);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --accent: #2a78d6; --accent-soft: #cde2fb;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.05);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --accent: #3987e5; --accent-soft: #184f95;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.05);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --accent: #3987e5; --accent-soft: #184f95;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 2px; letter-spacing: -0.01em; }
+h2 { font-size: 18px; margin: 0 0 4px; }
+h3 { font-size: 14px; margin: 0 0 8px; color: var(--ink-2); font-weight: 600; }
+.sub { color: var(--ink-2); margin: 0 0 16px; }
+.note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+section { margin-top: 28px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.stack > * + * { margin-top: 16px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+
+/* filters */
+.filters { position: sticky; top: 0; z-index: 5; background: var(--page); padding: 10px 0;
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-bottom: 1px solid var(--border); }
+@media (max-width: 760px) { .filters { position: static; } }
+.filters label { font-size: 12px; color: var(--ink-2); display: flex; gap: 6px; align-items: center; }
+select, input[type=search], button { font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
+input[type=search] { min-width: 160px; }
+button { cursor: pointer; }
+button:hover { background: var(--hover); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 4px 10px; font-size: 12px; }
+.seg button[aria-pressed=true] { background: var(--accent); color: #fff; }
+.count { margin-left: auto; color: var(--ink-2); font-size: 12px; }
+
+/* tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 16px; }
+.tile .k { font-size: 12px; color: var(--ink-2); }
+.tile .v { font-size: 26px; font-weight: 600; margin-top: 2px; }
+.tile .s { font-size: 12px; color: var(--muted); }
+
+/* horizontal bars */
+.hbars { display: grid; gap: 4px; }
+.hrow { display: grid; grid-template-columns: 130px 1fr 64px; gap: 10px; align-items: center;
+  width: 100%; text-align: left; border: 0; background: none; padding: 3px 4px; border-radius: 6px; }
+.hrow:hover { background: var(--hover); }
+.hrow.sel { background: var(--accent-soft); }
+.hrow .lab { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hrow .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 12px; }
+.track { height: 14px; display: flex; }
+.fill { display: flex; gap: 2px; height: 100%; min-width: 3px; }
+.fill span { height: 100%; }
+.fill span:last-child { border-radius: 0 4px 4px 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--ink-2); margin: 4px 0 10px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.legend i.ring { background: var(--surface) !important; border: 2px solid; border-radius: 50%; }
+.legend i.dot { border-radius: 50%; }
+.head { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: baseline; }
+
+/* tables */
+.tbl-wrap { overflow: auto; max-height: 420px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--ink-2); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable:hover { color: var(--ink); }
+.muted { color: var(--muted); }
+.chip { display: inline-block; padding: 0 6px; border-radius: 4px; background: var(--hover); border: 1px solid var(--border);
+  font-size: 11px; margin: 1px 2px 1px 0; white-space: nowrap; }
+.chip.btn { cursor: pointer; }
+.chip.btn:hover { border-color: var(--accent); }
+.dotk { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+
+/* heatmap */
+.heat td { text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; border: 2px solid var(--surface); padding: 6px 4px; min-width: 42px; border-radius: 4px; }
+.heat td.lab { text-align: left; font-size: 13px; white-space: nowrap; position: sticky; left: 0; background: var(--surface); min-width: 120px; }
+.heat th { text-align: center; background: var(--surface); }
+
+/* brew log */
+.log tr.row { cursor: pointer; }
+.log tr.row:hover td { background: var(--hover); }
+.log tr.row.open td { background: var(--hover); }
+.detail td { background: var(--page); padding: 14px; }
+.detail .cols { display: grid; grid-template-columns: 1.1fr 1.4fr 0.9fr; gap: 16px; }
+@media (max-width: 860px) { .detail .cols { grid-template-columns: 1fr; } }
+.detail table { font-size: 12px; }
+.detail th { background: var(--page); position: static; }
+.flavrow { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: start; }
+@media (max-width: 860px) { .flavrow { grid-template-columns: minmax(0, 1fr); } }
+.tag-fermenting { color: var(--s2); font-size: 11px; font-weight: 600; }
+
+svg text { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--muted); }
+#tip { position: fixed; pointer-events: none; z-index: 50; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0,0,0,0.15); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; max-width: 320px; display: none; }
+#tip b { font-weight: 600; }
+#tip .t-row { display: flex; justify-content: space-between; gap: 14px; }
+#tip .t-row span:last-child { font-variant-numeric: tabular-nums; }
+.empty { color: var(--muted); padding: 20px 0; text-align: center; }
+.minibar { display: inline-block; height: 8px; border-radius: 0 4px 4px 0; background: var(--s1); vertical-align: 0; margin-right: 6px; }
+.delta { font-size: 11px; white-space: nowrap; }
+.up { color: var(--ink); }
+.sugg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 8px; }
+@media (max-width: 860px) { .sugg { grid-template-columns: 1fr; } }
+.sugg .col { border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--page); }
+.sugg h4 { margin: 0 0 2px; font-size: 15px; }
+.sugg .why { color: var(--ink-2); font-size: 12px; margin: 0 0 8px; }
+.sugg table { font-size: 12px; }
+.sugg th { background: var(--page); position: static; }
+.sugg ul { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--ink-2); }
+.sugg li + li { margin-top: 3px; }
+.big { font-size: 20px; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Brew History</h1>
+  <p class="sub" id="subtitle"></p>
+
+  <div class="filters" role="search">
+    <label>From <select id="fFrom"></select></label>
+    <label>To <select id="fTo"></select></label>
+    <label>Style <select id="fStyle"></select></label>
+    <label>Hop <select id="fHop"></select></label>
+    <input type="search" id="fQ" placeholder="Search brew name or #" aria-label="Search brews">
+    <button id="fReset" type="button">Reset</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section>
+    <h2>Hops</h2>
+    <div class="stack">
+      <div class="card">
+        <div class="head">
+          <h3>Hop varieties by amount and stage</h3>
+          <div class="seg" id="hopMetric">
+            <button type="button" data-m="g" aria-pressed="true">Total grams</button>
+            <button type="button" data-m="n" aria-pressed="false">Brews used in</button>
+            <button type="button" data-m="gpl" aria-pressed="false">Avg g/L per brew</button>
+          </div>
+        </div>
+        <div class="legend" id="stageLegend"></div>
+        <div class="hbars" id="hopBars"></div>
+        <p class="note">Cryo, lupulin and extract forms are counted under their base variety. Click a hop to filter the whole report to brews that used it.
+          <button type="button" id="hopMore" style="font-size:12px;padding:2px 8px;margin-left:6px"></button></p>
+      </div>
+      <div class="card">
+        <div class="head">
+          <h3>Flavour &amp; aroma hops used together most</h3>
+          <div class="seg" id="comboMode">
+            <button type="button" data-c="2" aria-pressed="true">Pairs</button>
+            <button type="button" data-c="3" aria-pressed="false">Trios</button>
+            <button type="button" data-c="all" aria-pressed="false">Full line-ups</button>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table id="combos"></table></div>
+        <p class="note" id="comboNote"></p>
+      </div>
+      <div class="card">
+        <h3>Bittering hops</h3>
+        <div class="tbl-wrap"><table id="bitter"></table></div>
+        <p class="note" id="bitterNote"></p>
+      </div>
+      <div class="card">
+        <h3>Grams of each hop by year (top 15 varieties)</h3>
+        <div class="tbl-wrap" style="max-height:none"><table class="heat" id="heat"></table></div>
+      </div>
+      <div class="card">
+        <h3>Hop rate per brew (g/L)</h3>
+        <div class="legend" id="rateLegend"></div>
+        <div id="rateChart"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Malt bill</h2>
+    <div class="stack">
+      <div class="card">
+        <h3>Grist make-up per brew (% of grain weight)</h3>
+        <div class="legend" id="gristLegend"></div>
+        <div id="gristChart"></div>
+      </div>
+      <div class="card">
+        <h3>Fermentables</h3>
+        <div class="tbl-wrap"><table id="malts"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Water</h2>
+    <div class="stack">
+      <div class="card">
+        <h3><span class="wl">Your</span> tap water (your source profiles in Brewfather)</h3>
+        <div class="tbl-wrap"><table id="srcTbl"></table></div>
+        <p class="note" id="srcNote"></p>
+      </div>
+      <div class="card">
+        <h3>Final water chemistry per brew (ppm, after salts)</h3>
+        <div class="legend" id="ionLegend"></div>
+        <div id="ionChart"></div>
+        <p class="note">Dashed lines show the current <span class="wl">tap</span> water, so the gap to each dot is what your salts added. Bicarbonate is left out: acid neutralises it in the mash and Brewfather doesn't subtract it from the final profile.</p>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>Sulphate : chloride ratio</h3>
+          <div class="legend" id="ratioLegend"></div>
+          <div id="ratioChart"></div>
+        </div>
+        <div class="card">
+          <h3>Mash pH: planned vs measured</h3>
+          <div class="legend" id="phLegend"></div>
+          <div id="phChart"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Water adjustments per brew</h3>
+        <div class="tbl-wrap"><table id="waterTbl"></table></div>
+        <p class="note">Salts in grams and acid in ml (lactic is 80%), totals for mash + sparge. "vs <span class="wl">tap</span>" is the change from that brew's own <span class="wl">tap</span> source profile (or the current one when another source was used). Hover a row for the full profile.</p>
+      </div>
+      <div class="card">
+        <div class="head">
+          <h3>Suggested adjustments for <span class="wl">your</span> water</h3>
+          <label class="note" style="margin:0">Total water (mash + sparge) <input type="number" id="waterVol" min="5" max="100" step="0.5" style="width:70px;font:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink)"> L</label>
+        </div>
+        <div class="sugg" id="sugg"></div>
+        <p class="note" id="suggNote"></p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Results</h2>
+    <div class="stack">
+      <div class="grid2">
+        <div class="card">
+          <h3>ABV: planned vs actual</h3>
+          <div class="legend" id="abvLegend"></div>
+          <div id="abvChart"></div>
+        </div>
+        <div class="card">
+          <h3>Brewhouse efficiency (%)</h3>
+          <div class="legend" id="effLegend"></div>
+          <div id="effChart"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Yeast</h3>
+        <div class="tbl-wrap"><table id="yeasts"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Brew log</h2>
+    <div class="card">
+      <div class="tbl-wrap" style="max-height:none"><table class="log" id="log"></table></div>
+      <p class="note">Click a brew to see its malt bill, hop schedule and planned vs actual numbers. Colour is EBC.</p>
+    </div>
+  </section>
+  <p class="note" id="gen"></p>
+</main>
+<div id="tip" role="tooltip"></div>
+
+<script>/*__HOP_RADAR__*/</script>
+<script>
+const D = /*__DATA__*/null;
+const STAGES = ['Bittering', 'Late boil', 'Whirlpool', 'Dry hop'];
+const STAGE_VAR = { 'Bittering': '--s1', 'Late boil': '--s2', 'Whirlpool': '--s3', 'Dry hop': '--s4' };
+const GRIST = ['Base', 'Crystal', 'Oats / wheat / dextrin', 'Other'];
+const GRIST_VAR = { 'Base': '--s1', 'Crystal': '--s2', 'Oats / wheat / dextrin': '--s3', 'Other': '--s4' };
+const gristKey = g => GRIST.includes(g) ? g : 'Other';
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ok = v => v != null && !isNaN(v);
+const fmt = (v, d = 1) => ok(v) ? Number(v).toFixed(d) : '–';
+const mean = a => { a = a.filter(ok); return a.length ? a.reduce((s, v) => s + v, 0) / a.length : null; };
+const year = b => b.date ? +b.date.slice(0, 4) : null;
+const ts = b => Date.parse(b.date);
+const dateNice = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }) : '–';
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const tipAttr = html => ` data-tip="${esc(html)}"`;
+const tRow = (k, v) => `<div class="t-row"><span>${k}</span><span>${v}</span></div>`;
+const hopTiming = h => h.stage === 'Dry hop' ? (ok(h.day) ? 'day ' + h.day : '') :
+  (ok(h.time) ? h.time + ' min' : '') + (h.stage === 'Whirlpool' && ok(h.temp) ? ' @ ' + h.temp + '°C' : '');
+
+const S = { from: null, to: null, style: '', hop: '', q: '', hopMetric: 'g', hopAll: false, combo: '2', sort: { k: 'date', dir: -1 }, open: new Set() };
+
+function filtered() {
+  const q = S.q.toLowerCase();
+  return D.brews.filter(b => {
+    const y = year(b);
+    if (S.from && y < S.from) return false;
+    if (S.to && y > S.to) return false;
+    if (S.style && b.style !== S.style) return false;
+    if (S.hop && !b.hops.some(h => h.variety === S.hop)) return false;
+    if (q && !(b.name + ' ' + b.recipe + ' ' + b.style + ' #' + b.no).toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+/* ------------------------------------------------------------ filters */
+function initFilters() {
+  const years = [...new Set(D.brews.map(year))].filter(ok).sort();
+  const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(t)}</option>`;
+  $('#fFrom').innerHTML = years.map((y, i) => opt(y, y, i === 0)).join('');
+  $('#fTo').innerHTML = years.map((y, i) => opt(y, y, i === years.length - 1)).join('');
+  const styles = {};
+  D.brews.forEach(b => styles[b.style] = (styles[b.style] || 0) + 1);
+  $('#fStyle').innerHTML = opt('', 'All styles') + Object.entries(styles).sort((a, b) => b[1] - a[1]).map(([s, n]) => opt(s, `${s} (${n})`)).join('');
+  const hops = {};
+  D.brews.forEach(b => new Set(b.hops.map(h => h.variety)).forEach(v => hops[v] = (hops[v] || 0) + 1));
+  $('#fHop').innerHTML = opt('', 'All hops') + Object.keys(hops).sort((a, b) => a.localeCompare(b)).map(v => opt(v, `${v} (${hops[v]})`)).join('');
+  S.from = years[0]; S.to = years[years.length - 1];
+  $('#fFrom').onchange = e => { S.from = +e.target.value; render(); };
+  $('#fTo').onchange = e => { S.to = +e.target.value; render(); };
+  $('#fStyle').onchange = e => { S.style = e.target.value; render(); };
+  $('#fHop').onchange = e => { S.hop = e.target.value; render(); };
+  $('#fQ').oninput = e => { S.q = e.target.value.trim(); render(); };
+  $('#fReset').onclick = () => {
+    S.from = years[0]; S.to = years[years.length - 1]; S.style = ''; S.hop = ''; S.q = '';
+    $('#fFrom').value = S.from; $('#fTo').value = S.to; $('#fStyle').value = ''; $('#fHop').value = ''; $('#fQ').value = '';
+    render();
+  };
+  $('#hopMetric').onclick = e => {
+    const m = e.target.dataset.m; if (!m) return;
+    S.hopMetric = m;
+    $('#hopMetric').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m));
+    render();
+  };
+  $('#hopMore').onclick = () => { S.hopAll = !S.hopAll; render(); };
+  $('#comboMode').onclick = e => {
+    const c = e.target.dataset.c; if (!c) return;
+    S.combo = c;
+    $('#comboMode').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.c === c));
+    renderCombos(filtered());
+  };
+  const legend = (keys, vars) => keys.map(k => `<span><i style="background:var(${vars[k]})"></i>${esc(k)}</span>`).join('');
+  $('#stageLegend').innerHTML = legend(STAGES, STAGE_VAR);
+  $('#gristLegend').innerHTML = legend(GRIST, GRIST_VAR);
+}
+function setHop(v) {
+  S.hop = S.hop === v ? '' : v;
+  $('#fHop').value = S.hop;
+  render();
+}
+
+/* ------------------------------------------------------------ tiles */
+function renderTiles(B) {
+  const litres = B.reduce((s, b) => s + (b.sizeActual || b.size || 0), 0);
+  const hopG = B.reduce((s, b) => s + b.hops.reduce((t, h) => t + h.g, 0), 0);
+  const abvs = B.map(b => b.abv).filter(ok);
+  const fav = {};
+  B.forEach(b => new Set(b.hops.map(h => h.variety)).forEach(v => fav[v] = (fav[v] || 0) + 1));
+  const top = Object.entries(fav).sort((a, b) => b[1] - a[1])[0];
+  const first = B[0], last = B[B.length - 1];
+  const tiles = [
+    ['Brews', B.length, B.length ? `${dateNice(first.date)} – ${dateNice(last.date)}` : ''],
+    ['Litres brewed', fmt(litres, 0), B.length ? `${fmt(litres / B.length, 1)} L per brew` : ''],
+    ['Average ABV', B.length ? fmt(mean(abvs)) + '%' : '–', abvs.length ? `${fmt(Math.min(...abvs))}% to ${fmt(Math.max(...abvs))}%` : ''],
+    ['Brewhouse efficiency', B.length ? fmt(mean(B.map(b => b.eff)), 0) + '%' : '–', B.length ? `planned ${fmt(mean(B.map(b => b.effPlan)), 0)}%` : ''],
+    ['Hops used', fmt(hopG / 1000, 1) + ' kg', B.length ? `${fmt(mean(B.map(b => b.hops.reduce((t, h) => t + h.g, 0) / b.size)), 1)} g/L per brew` : ''],
+    ['Most-used hop', top ? top[0] : '–', top ? `in ${top[1]} of ${B.length} brews` : ''],
+  ];
+  $('#tiles').innerHTML = tiles.map(([k, v, s]) => `<div class="card tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="s">${esc(s)}</div></div>`).join('');
+}
+
+/* ------------------------------------------------------------ hops */
+function hopAgg(B) {
+  const m = new Map();
+  B.forEach(b => {
+    const per = {};
+    b.hops.forEach(h => {
+      let o = m.get(h.variety);
+      if (!o) { o = { v: h.variety, g: 0, st: {}, brews: new Set(), gplSum: 0, last: '' }; m.set(h.variety, o); }
+      o.g += h.g;
+      o.st[h.stage] = (o.st[h.stage] || 0) + h.g;
+      o.brews.add(b.no);
+      per[h.variety] = (per[h.variety] || 0) + h.g / b.size;
+      if (b.date > o.last) o.last = b.date;
+    });
+    Object.entries(per).forEach(([v, x]) => m.get(v).gplSum += x);
+  });
+  return [...m.values()].map(o => ({ ...o, n: o.brews.size, gpl: o.gplSum / o.brews.size }));
+}
+function renderHopBars(B) {
+  const agg = hopAgg(B);
+  const key = S.hopMetric;
+  agg.sort((a, b) => b[key] - a[key] || b.g - a.g);
+  const rows = S.hopAll ? agg : agg.slice(0, 15);
+  $('#hopMore').textContent = agg.length > 15 ? (S.hopAll ? 'Show top 15' : `Show all ${agg.length}`) : '';
+  $('#hopMore').style.display = agg.length > 15 ? '' : 'none';
+  if (!rows.length) { $('#hopBars').innerHTML = '<div class="empty">No brews match the filters.</div>'; return; }
+  const max = rows[0][key];
+  $('#hopBars').innerHTML = rows.map(o => {
+    const total = o[key];
+    const segs = STAGES.filter(s => o.st[s]).map(s =>
+      `<span style="flex:${o.st[s]} 1 0;background:var(${STAGE_VAR[s]})"></span>`).join('');
+    const val = key === 'g' ? fmt(o.g, 0) + ' g' : key === 'n' ? o.n + (o.n === 1 ? ' brew' : ' brews') : fmt(o.gpl, 2) + ' g/L';
+    const tip = `<b>${esc(o.v)}</b>` + tRow('Total', fmt(o.g, 0) + ' g') + tRow('Brews', o.n) + tRow('Avg per brew', fmt(o.gpl, 2) + ' g/L') +
+      STAGES.filter(s => o.st[s]).map(s => tRow(`<i class="dotk" style="background:var(${STAGE_VAR[s]})"></i>${s}`, fmt(o.st[s], 0) + ' g')).join('') +
+      tRow('Last used', dateNice(o.last));
+    return `<button type="button" class="hrow${S.hop === o.v ? ' sel' : ''}" data-hop="${esc(o.v)}"${tipAttr(tip)}>
+      <span class="lab">${esc(o.v)}</span>
+      <span class="track"><span class="fill" style="width:${(total / max * 100).toFixed(1)}%">${segs}</span></span>
+      <span class="val">${val}</span></button>`;
+  }).join('');
+}
+const AROMA = new Set(['Late boil', 'Whirlpool', 'Dry hop']);
+const aromaSet = b => [...new Set(b.hops.filter(h => AROMA.has(h.stage)).map(h => h.variety))].sort((a, c) => a.localeCompare(c));
+function choose(arr, k) {
+  const out = [], cur = [];
+  (function rec(start) {
+    if (cur.length === k) { out.push(cur.slice()); return; }
+    for (let i = start; i < arr.length; i++) { cur.push(arr[i]); rec(i + 1); cur.pop(); }
+  })(0);
+  return out;
+}
+function renderCombos(B) {
+  const mode = S.combo, m = new Map();
+  B.forEach(b => {
+    const v = aromaSet(b);
+    const sets = mode === 'all' ? (v.length ? [v] : []) : choose(v, +mode);
+    sets.forEach(set => {
+      const k = set.join('\u0000');
+      const o = m.get(k) || { set, brews: [], gpl: [], last: '' };
+      o.brews.push(b);
+      o.gpl.push(b.hops.filter(h => AROMA.has(h.stage) && set.includes(h.variety)).reduce((s, h) => s + h.g, 0) / b.size);
+      if (b.date > o.last) o.last = b.date;
+      m.set(k, o);
+    });
+  });
+  let rows = [...m.values()].sort((x, y) => y.brews.length - x.brews.length || (y.last > x.last ? 1 : -1));
+  const total = rows.length;
+  if (mode !== 'all') rows = rows.slice(0, 30);
+  const brewChips = list => list.map(b => `<span class="chip"${tipAttr(`<b>#${b.no} ${esc(b.name)}</b>` + tRow('Brewed', dateNice(b.date)) + tRow('ABV', fmt(b.abv) + '%') +
+    b.hops.filter(h => AROMA.has(h.stage)).map(h => tRow(esc(h.name) + ' <span class="muted">' + esc(h.stage.toLowerCase()) + '</span>', fmt(h.g, 0) + ' g')).join(''))}>#${b.no}</span>`).join('');
+  const hopChip = v => `<span class="chip btn" data-hop="${esc(v)}">${esc(v)}</span>`;
+  const label = mode === '2' ? 'Pair' : mode === '3' ? 'Trio' : 'Flavour & aroma hops';
+  $('#combos').innerHTML = rows.length ? `<thead><tr><th>${label}</th><th class="n">Brews</th><th class="n">Avg g/L</th><th>Brew #</th><th class="n">Last brewed</th></tr></thead><tbody>` +
+    rows.map(o => `<tr><td>${o.set.map(hopChip).join('')}</td><td class="n">${o.brews.length}</td><td class="n">${fmt(mean(o.gpl), 1)}</td><td>${brewChips(o.brews)}</td><td class="n muted">${dateNice(o.last)}</td></tr>`).join('') + '</tbody>'
+    : `<tbody><tr><td class="empty">No ${mode === '3' ? 'brews with three or more' : 'flavour/aroma hop combinations in these'} brews.</td></tr></tbody>`;
+  const shown = mode === 'all' ? `${total} different line-ups` : `top ${rows.length} of ${total}`;
+  $('#comboNote').textContent = `Showing ${shown}. Only late-boil, whirlpool and dry-hop additions count: bittering additions are left out (a hop used for bittering and also later still counts). ` +
+    (mode === '3' ? 'A brew with four aroma hops counts towards each of its four trios. ' : '') +
+    (mode === 'all' ? 'Each brew\'s complete set of flavour/aroma varieties, any number of hops. ' : '') + 'Avg g/L is those hops combined, per brew.';
+}
+function renderHeat(B) {
+  const agg = hopAgg(B).sort((a, b) => b.g - a.g).slice(0, 15);
+  const years = [...new Set(B.map(year))].sort();
+  if (!agg.length) { $('#heat').innerHTML = '<tbody><tr><td class="empty">No brews match the filters.</td></tr></tbody>'; return; }
+  const cell = {};
+  B.forEach(b => b.hops.forEach(h => { const k = h.variety + '|' + year(b); cell[k] = (cell[k] || 0) + h.g; }));
+  const max = Math.max(...agg.flatMap(o => years.map(y => cell[o.v + '|' + y] || 0)));
+  $('#heat').innerHTML = `<thead><tr><th></th>${years.map(y => `<th>${y}</th>`).join('')}</tr></thead><tbody>` +
+    agg.map(o => `<tr><td class="lab">${esc(o.v)}</td>` + years.map(y => {
+      const g = cell[o.v + '|' + y] || 0;
+      if (!g) return '<td></td>';
+      const t = g / max, pct = Math.round(12 + t * 88);
+      const fg = pct > 55 ? '#fff' : 'var(--ink)';
+      const brews = B.filter(b => year(b) === y && b.hops.some(h => h.variety === o.v)).length;
+      return `<td style="background:color-mix(in oklab, var(--s1) ${pct}%, var(--surface));color:${fg}"${tipAttr(`<b>${esc(o.v)} in ${y}</b>` + tRow('Total', fmt(g, 0) + ' g') + tRow('Brews', brews))}>${fmt(g, 0)}</td>`;
+    }).join('') + '</tr>').join('') + '</tbody>';
+}
+
+/* ------------------------------------------------------------ svg charts */
+function niceTicks(lo, hi, n) {
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const raw = (hi - lo) / n, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * p).find(s => s >= raw);
+  const t0 = Math.floor(lo / step) * step, t = [];
+  for (let v = t0; v <= hi + step * 0.001; v += step) t.push(+v.toFixed(10));
+  if (t[t.length - 1] < hi) t.push(t[t.length - 1] + step);
+  return t;
+}
+function timeAxis(x0, x1, X, H, mb, W) {
+  const y0 = new Date(x0).getFullYear(), y1 = new Date(x1).getFullYear();
+  const yrs = []; for (let y = y0; y <= y1 + 1; y++) yrs.push(y);
+  const px = (X(Date.UTC(y0 + 1, 0, 1)) - X(Date.UTC(y0, 0, 1)));
+  const every = Math.max(1, Math.ceil(44 / Math.max(px, 1)));
+  return yrs.filter(y => (y - y0) % every === 0).map(y => {
+    const x = X(Date.UTC(y, 0, 1));
+    if (x < 30 || x > W - 10) return '';
+    return `<line x1="${x}" x2="${x}" y1="${H - mb}" y2="${H - mb + 4}" stroke="var(--axis)"/><text x="${x}" y="${H - mb + 16}" text-anchor="middle">${y}</text>`;
+  }).join('');
+}
+function scatter(el, { series, links = [], yUnit = '', yDec = 1, refs = [], band = null, lines = false, yFmt = null, zero = false, H = 240 }) {
+  const pts = series.flatMap(s => s.points);
+  if (!pts.length) { el.innerHTML = '<div class="empty">No brews match the filters.</div>'; return; }
+  const W = Math.max(280, el.clientWidth), m = { l: yFmt ? 46 : 40, r: 14, t: 10, b: 26 };
+  let x0 = Math.min(...pts.map(p => p.x)), x1 = Math.max(...pts.map(p => p.x));
+  const pad = Math.max((x1 - x0) * 0.03, 15 * 864e5); x0 -= pad; x1 += pad;
+  const ys = pts.map(p => p.y).concat(refs.map(r => r.y), band ? [band.lo, band.hi] : []);
+  const ticks = niceTicks(zero ? 0 : Math.min(...ys), Math.max(...ys), 5);
+  const ylo = ticks[0], yhi = ticks[ticks.length - 1];
+  const X = x => m.l + (x - x0) / (x1 - x0) * (W - m.l - m.r);
+  const Y = y => H - m.b - (y - ylo) / (yhi - ylo) * (H - m.t - m.b);
+  let s = `<svg width="${W}" height="${H}" role="img">`;
+  if (band) s += `<rect x="${m.l}" y="${Y(band.hi)}" width="${W - m.l - m.r}" height="${Y(band.lo) - Y(band.hi)}" fill="var(--s3)" opacity="0.12"/>`;
+  s += ticks.map(t => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--grid)"/><text x="${m.l - 6}" y="${Y(t) + 4}" text-anchor="end">${yFmt ? yFmt(t) : +t.toFixed(3) + yUnit}</text>`).join('');
+  s += `<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="var(--axis)"/>`;
+  s += timeAxis(x0, x1, X, H, m.b, W);
+  s += refs.map(r => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(r.y)}" y2="${Y(r.y)}" stroke="var(${r.color})" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.8"/>`).join('');
+  s += links.map(l => `<line x1="${X(l.x)}" x2="${X(l.x)}" y1="${Y(l.a)}" y2="${Y(l.b)}" stroke="var(--axis)" stroke-width="1.5"/>`).join('');
+  if (lines) series.forEach(sr => {
+    const p = sr.points.slice().sort((a, b) => a.x - b.x);
+    if (p.length > 1) s += `<polyline points="${p.map(q => X(q.x).toFixed(1) + ',' + Y(q.y).toFixed(1)).join(' ')}" fill="none" stroke="var(${sr.color})" stroke-width="2" stroke-linejoin="round" opacity="0.55"/>`;
+  });
+  series.forEach(sr => sr.points.forEach(p => {
+    s += sr.hollow
+      ? `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="4" fill="var(--surface)" stroke="var(${sr.color})" stroke-width="2"/>`
+      : `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="4.5" fill="var(${sr.color})" stroke="var(--surface)" stroke-width="2"/>`;
+  }));
+  pts.forEach(p => { s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="10" fill="transparent"${tipAttr(p.tip)}/>`; });
+  el.innerHTML = s + '</svg>';
+}
+function brewTip(b, extra) {
+  return `<b>#${b.no} ${esc(b.name)}</b><div class="muted">${dateNice(b.date)} · ${esc(b.style)}</div>` + extra;
+}
+function renderRate(B) {
+  $('#rateLegend').innerHTML = `<span><i class="dot" style="background:var(--s4)"></i>Dry hop</span><span><i class="dot" style="background:var(--s1)"></i>Hot side (boil + whirlpool)</span>`;
+  const dry = [], hot = [];
+  B.forEach(b => {
+    const d = b.hops.filter(h => h.stage === 'Dry hop').reduce((s, h) => s + h.g, 0) / b.size;
+    const k = b.hops.filter(h => h.stage !== 'Dry hop').reduce((s, h) => s + h.g, 0) / b.size;
+    const list = st => b.hops.filter(h => st(h.stage)).map(h => tRow(esc(h.name) + ' <span class="muted">' + esc(hopTiming(h)) + '</span>', fmt(h.g, 0) + ' g')).join('');
+    if (d) dry.push({ x: ts(b), y: d, tip: brewTip(b, tRow('<b>Dry hop</b>', '<b>' + fmt(d, 1) + ' g/L</b>') + list(s => s === 'Dry hop')) });
+    if (k) hot.push({ x: ts(b), y: k, tip: brewTip(b, tRow('<b>Hot side</b>', '<b>' + fmt(k, 1) + ' g/L</b>') + list(s => s !== 'Dry hop')) });
+  });
+  scatter($('#rateChart'), { series: [{ points: hot, color: '--s1' }, { points: dry, color: '--s4' }], yUnit: '' });
+}
+function renderGrist(B) {
+  const el = $('#gristChart');
+  if (!B.length) { el.innerHTML = '<div class="empty">No brews match the filters.</div>'; return; }
+  const W = Math.max(280, el.clientWidth), H = 220, m = { l: 40, r: 6, t: 8, b: 26 };
+  const n = B.length, band = (W - m.l - m.r) / n, bw = Math.max(2, band - 2);
+  const Y = p => H - m.b - p / 100 * (H - m.t - m.b);
+  let s = `<svg width="${W}" height="${H}" role="img">`;
+  [0, 25, 50, 75, 100].forEach(t => s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--grid)"/><text x="${m.l - 6}" y="${Y(t) + 4}" text-anchor="end">${t}%</text>`);
+  let lastYear = null, lastLabelX = -99;
+  B.forEach((b, i) => {
+    const x = m.l + i * band + (band - bw) / 2;
+    const pct = {};
+    b.ferms.forEach(f => { const k = gristKey(f.group); pct[k] = (pct[k] || 0) + f.pct; });
+    let acc = 0;
+    GRIST.forEach((k, gi) => {
+      if (!pct[k]) return;
+      const yTop = Y(acc + pct[k]), yBot = Y(acc);
+      const h = Math.max(0, yBot - yTop - (acc > 0 ? 2 : 0));
+      const isTop = !GRIST.slice(gi + 1).some(z => pct[z]);
+      const r = isTop && bw >= 6 ? 3 : 0;
+      s += r ? `<path d="M${x},${yTop + h} V${yTop + r} q0,-${r} ${r},-${r} H${x + bw - r} q${r},0 ${r},${r} V${yTop + h} Z" fill="var(${GRIST_VAR[k]})"/>`
+        : `<rect x="${x}" y="${yTop}" width="${bw}" height="${h}" fill="var(${GRIST_VAR[k]})"/>`;
+      acc += pct[k];
+    });
+    const y = year(b);
+    if (y !== lastYear && x - lastLabelX > 34) { s += `<text x="${x}" y="${H - m.b + 16}">${y}</text>`; lastLabelX = x; }
+    lastYear = y;
+    const tip = brewTip(b, GRIST.filter(k => pct[k]).map(k => tRow(`<i class="dotk" style="background:var(${GRIST_VAR[k]})"></i>${k}`, fmt(pct[k], 0) + '%')).join('') +
+      '<hr style="border:0;border-top:1px solid var(--grid);margin:6px 0">' + b.ferms.map(f => tRow(esc(f.name), fmt(f.kg, 2) + ' kg · ' + fmt(f.pct, 0) + '%')).join(''));
+    s += `<rect x="${m.l + i * band}" y="${m.t}" width="${band}" height="${H - m.t - m.b}" fill="transparent"${tipAttr(tip)}/>`;
+  });
+  s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)"/>`;
+  el.innerHTML = s + '</svg>';
+}
+function renderMalts(B) {
+  const m = new Map();
+  B.forEach(b => b.ferms.forEach(f => {
+    const k = f.name.toLowerCase();
+    const o = m.get(k) || { name: f.name, group: f.group, ebc: f.ebc, brews: 0, kg: 0, pct: [], last: '' };
+    o.brews++; o.kg += f.kg; o.pct.push(f.pct); if (b.date > o.last) o.last = b.date;
+    m.set(k, o);
+  }));
+  const rows = [...m.values()].sort((a, b) => b.brews - a.brews || b.kg - a.kg);
+  $('#malts').innerHTML = rows.length ? `<thead><tr><th>Fermentable</th><th>Type</th><th class="n">EBC</th><th class="n">Brews</th><th class="n">Avg % of grist</th><th class="n">Range</th><th class="n">Total kg</th><th class="n">Last used</th></tr></thead><tbody>` +
+    rows.map(o => `<tr><td>${esc(o.name)}</td><td><i class="dotk" style="background:var(${GRIST_VAR[gristKey(o.group)]})"></i>${esc(o.group)}</td><td class="n">${fmt(o.ebc, 0)}</td><td class="n">${o.brews}</td><td class="n">${fmt(mean(o.pct), 1)}%</td><td class="n muted">${fmt(Math.min(...o.pct), 0)}–${fmt(Math.max(...o.pct), 0)}%</td><td class="n">${fmt(o.kg, 1)}</td><td class="n muted">${dateNice(o.last)}</td></tr>`).join('') + '</tbody>'
+    : '<tbody><tr><td class="empty">No brews match the filters.</td></tr></tbody>';
+}
+function renderAbv(B) {
+  $('#abvLegend').innerHTML = `<span><i class="dot" style="background:var(--s1)"></i>Actual</span><span><i class="ring" style="border-color:var(--s2)"></i>Planned</span>`;
+  const act = [], plan = [], links = [];
+  B.forEach(b => {
+    const tip = brewTip(b, tRow('Actual ABV', fmt(b.abv) + '%') + tRow('Planned ABV', fmt(b.abvPlan) + '%') + tRow('OG actual / plan', fmt(b.og, 3) + ' / ' + fmt(b.ogPlan, 3)) + tRow('FG actual / plan', fmt(b.fg, 3) + ' / ' + fmt(b.fgPlan, 3)));
+    if (ok(b.abvPlan)) plan.push({ x: ts(b), y: b.abvPlan, tip });
+    if (ok(b.abv)) act.push({ x: ts(b), y: b.abv, tip });
+    if (ok(b.abv) && ok(b.abvPlan)) links.push({ x: ts(b), a: b.abvPlan, b: b.abv });
+  });
+  scatter($('#abvChart'), { series: [{ points: plan, color: '--s2', hollow: true }, { points: act, color: '--s1' }], links, yUnit: '%' });
+}
+function renderEff(B) {
+  $('#effLegend').innerHTML = `<span><i class="dot" style="background:var(--s1)"></i>Actual</span><span><i class="ring" style="border-color:var(--s2)"></i>Planned</span>`;
+  const act = [], plan = [], links = [];
+  B.forEach(b => {
+    const tip = brewTip(b, tRow('Efficiency actual', fmt(b.eff, 1) + '%') + tRow('Efficiency planned', fmt(b.effPlan, 1) + '%') + tRow('Mash temp', ok(b.mashTemp) ? b.mashTemp + '°C' : '–'));
+    if (ok(b.effPlan)) plan.push({ x: ts(b), y: b.effPlan, tip });
+    if (ok(b.eff)) act.push({ x: ts(b), y: b.eff, tip });
+    if (ok(b.eff) && ok(b.effPlan)) links.push({ x: ts(b), a: b.effPlan, b: b.eff });
+  });
+  scatter($('#effChart'), { series: [{ points: plan, color: '--s2', hollow: true }, { points: act, color: '--s1' }], links, yUnit: '%' });
+}
+function renderYeasts(B) {
+  const m = new Map();
+  B.forEach(b => new Set(b.yeasts).forEach(y => {
+    const o = m.get(y) || { y, brews: [], last: '' };
+    o.brews.push(b); if (b.date > o.last) o.last = b.date; m.set(y, o);
+  }));
+  const rows = [...m.values()].sort((a, b) => b.brews.length - a.brews.length);
+  $('#yeasts').innerHTML = rows.length ? `<thead><tr><th>Yeast</th><th class="n">Brews</th><th class="n">Avg attenuation</th><th class="n">Planned</th><th class="n">Avg FG</th><th class="n">Avg ABV</th><th class="n">Last used</th></tr></thead><tbody>` +
+    rows.map(o => `<tr><td>${esc(o.y)}</td><td class="n">${o.brews.length}</td><td class="n">${fmt(mean(o.brews.map(b => b.att)), 1)}%</td><td class="n muted">${fmt(mean(o.brews.map(b => b.attPlan)), 1)}%</td><td class="n">${fmt(mean(o.brews.map(b => b.fg)), 3)}</td><td class="n">${fmt(mean(o.brews.map(b => b.abv)), 1)}%</td><td class="n muted">${dateNice(o.last)}</td></tr>`).join('') + '</tbody>'
+    : '<tbody><tr><td class="empty">No brews match the filters.</td></tr></tbody>';
+}
+
+/* ------------------------------------------------------------ bittering hops */
+function renderBitter(B) {
+  const m = new Map();
+  let allIbu = 0, bitIbu = 0;
+  B.forEach(b => {
+    b.hops.forEach(h => { if (ok(h.ibu)) allIbu += h.ibu; });
+    const bit = b.hops.filter(h => h.stage === 'Bittering');
+    const per = {};
+    bit.forEach(h => {
+      const o = m.get(h.variety) || { v: h.variety, brews: new Map(), g: 0, gpl: 0, alpha: [], ibu: 0, when: {}, forms: new Set(), last: '' };
+      o.g += h.g; o.forms.add(h.form);
+      if (ok(h.alpha)) o.alpha.push(h.alpha);
+      if (ok(h.ibu)) { o.ibu += h.ibu; bitIbu += h.ibu; }
+      const w = h.use === 'First Wort' ? 'FWH' : (ok(h.time) ? h.time + ' min' : '?');
+      o.when[w] = (o.when[w] || 0) + 1;
+      per[h.variety] = (per[h.variety] || 0) + h.g;
+      o.brews.set(b.no, b);
+      if (b.date > o.last) o.last = b.date;
+      m.set(h.variety, o);
+    });
+    Object.entries(per).forEach(([v, g]) => m.get(v).gpl += g / b.size);
+  });
+  const rows = [...m.values()].map(o => ({ ...o, n: o.brews.size })).sort((a, b) => b.n - a.n || b.g - a.g);
+  if (!rows.length) { $('#bitter').innerHTML = '<tbody><tr><td class="empty">No bittering additions in these brews.</td></tr></tbody>'; $('#bitterNote').textContent = ''; return; }
+  const maxN = rows[0].n;
+  $('#bitter').innerHTML = `<thead><tr><th>Hop</th><th>Brews</th><th class="n">Total g</th><th class="n">Avg g/brew</th><th class="n">Avg g/L</th><th class="n">Avg AA%</th><th class="n">Avg IBU/brew</th><th class="n">Share of bittering IBU</th><th>Added at</th><th>Also flavour/aroma in</th><th class="n">Last used</th></tr></thead><tbody>` +
+    rows.map(o => {
+      const list = [...o.brews.values()];
+      const aroma = list.filter(b => b.hops.some(h => h.variety === o.v && AROMA.has(h.stage))).length;
+      const when = Object.entries(o.when).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k)}${n > 1 ? ' <span class="muted">×' + n + '</span>' : ''}`).join(', ');
+      const tip = `<b>${esc(o.v)} for bittering</b>` + list.map(b => {
+        const g = b.hops.filter(h => h.variety === o.v && h.stage === 'Bittering');
+        return tRow(`#${b.no} ${esc(b.name)}`, g.map(h => fmt(h.g, 0) + ' g' + (h.use === 'First Wort' ? ' FWH' : ' @' + h.time)).join(' + '));
+      }).join('');
+      return `<tr${tipAttr(tip)}><td><span class="chip btn" data-hop="${esc(o.v)}">${esc(o.v)}</span>${[...o.forms].filter(f => f !== 'Pellet').map(f => ` <span class="muted" style="font-size:11px">${esc(f)}</span>`).join('')}</td>` +
+        `<td style="white-space:nowrap"><span class="minibar" style="width:${Math.round(o.n / maxN * 70) + 4}px"></span>${o.n}</td>` +
+        `<td class="n">${fmt(o.g, 0)}</td><td class="n">${fmt(o.g / o.n, 0)}</td><td class="n">${fmt(o.gpl / o.n, 2)}</td><td class="n">${o.alpha.length ? fmt(mean(o.alpha), 1) : '–'}</td>` +
+        `<td class="n">${fmt(o.ibu / o.n, 0)}</td><td class="n">${bitIbu ? fmt(o.ibu / bitIbu * 100, 0) + '%' : '–'}</td><td style="white-space:nowrap">${when}</td>` +
+        `<td class="muted">${aroma ? aroma + ' of ' + o.n : '–'}</td><td class="n muted">${dateNice(o.last)}</td></tr>`;
+    }).join('') + '</tbody>';
+  const brewsWith = B.filter(b => b.hops.some(h => h.stage === 'Bittering')).length;
+  $('#bitterNote').textContent = `Bittering means first-wort hops or boil additions of 30 minutes or more. ${brewsWith} of ${B.length} brews had one. ` +
+    (allIbu ? `On average the bittering charge gave ${fmt(bitIbu / allIbu * 100, 0)}% of the planned IBU; the rest came from late, whirlpool and dry-hop additions. ` : '') +
+    'IBU figures are Brewfather\'s planned (Tinseth) values. Hover a row for each brew\'s amounts; click a hop to filter the report.';
+}
+
+/* ------------------------------------------------------------ water */
+const IONS = ['Ca', 'Mg', 'Na', 'Cl', 'SO4', 'HCO3'];
+const ION_LABEL = { Ca: 'Calcium', Mg: 'Magnesium', Na: 'Sodium', Cl: 'Chloride', SO4: 'Sulphate', HCO3: 'Bicarbonate' };
+const trim1 = v => String(+(+v).toFixed(1));
+const ratioTxt = r => !ok(r) || r <= 0 ? '–' : r >= 1 ? `${trim1(r)}:1` : `1:${trim1(1 / r)}`;
+/* Your tap water: source profiles whose name matches the "water source" setting (Admin › Settings). */
+const WS = D.water || {};
+const WL = WS.label || 'tap';                                     // "vs <your label>" / "vs tap"
+const WLW = WS.label ? WS.label + ' water' : 'your tap water';   // "<your label> water" / "your tap water"
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+let WRE = null; try { WRE = WS.pattern ? new RegExp(WS.pattern, 'i') : null; } catch (e) { WRE = null; }
+const isTap = n => !!n && (WRE ? WRE.test(n) : true);
+if (WS.label) document.querySelectorAll('.wl').forEach(el => el.textContent = WS.label);
+const tapNow = () => (D.sources || []).find(s => isTap(s.name));
+const tapFor = b => (b.wd && isTap(b.wd.source) && b.wd.src) ? b.wd.src : tapNow();
+function styleGroup(b) {
+  const n = (b.name + ' ' + b.recipe).toLowerCase(), s = (b.style || '').toLowerCase();
+  if (/hazy|new england|neipa|juicy|z'england/.test(n + ' ' + s)) return 'NEIPA';
+  if (/\b(apa|xpa)\b|pale ale|session|bitter|bookbinder/.test(n) || (/pale ale|session|bitter/.test(s) && !/india/.test(s))) return 'Pale';
+  if (/ipa|india/.test(n + ' ' + s)) return 'IPA';
+  return 'Other';
+}
+const SALT_COLS = ['Gypsum', 'CaCl2', 'Epsom'];
+const saltOther = wd => Object.entries(wd.salts).filter(([k]) => !SALT_COLS.includes(k) && !['Lactic', 'Phosphoric'].includes(k));
+const median = a => { a = a.filter(ok).sort((x, y) => x - y); if (!a.length) return null; const i = a.length >> 1; return a.length % 2 ? a[i] : (a[i - 1] + a[i]) / 2; };
+
+function renderSources() {
+  const S0 = (D.sources || []).filter(s => isTap(s.name));
+  const cur = tapNow();
+  if (!S0.length) { $('#srcTbl').innerHTML = `<tbody><tr><td class="empty">No ${esc(WL)} source profile found. Set the water source on the Admin page.</td></tr></tbody>`; return; }
+  $('#srcTbl').innerHTML = `<thead><tr><th>Profile</th>${IONS.map(i => `<th class="n">${i}</th>`).join('')}<th class="n">SO4:Cl</th><th class="n">Alkalinity</th><th class="n">Brews</th><th class="n">Used</th></tr></thead><tbody>` +
+    S0.map(s => `<tr><td>${esc(s.name)}${s === cur ? ' <span class="chip">current</span>' : ''}</td>${IONS.map(i => `<td class="n">${fmt(s[i], 0)}</td>`).join('')}<td class="n">${ratioTxt(s.SO4 / s.Cl)}</td><td class="n">${fmt(s.alk, 0)}</td><td class="n">${s.brews}</td><td class="n muted">${dateNice(s.first)} – ${dateNice(s.last)}</td></tr>`).join('') + '</tbody>';
+  const hard = cur.HCO3 > 150, lowSO4 = cur.SO4 < 50;
+  $('#srcNote').innerHTML = `Ions in ppm (mg/L); alkalinity as CaCO3. ${esc(cap(WLW))} has about ${fmt(cur.HCO3, 0)} ppm bicarbonate, ${fmt(cur.Ca, 0)} calcium and ${fmt(cur.SO4, 0)} sulphate, so the raw ratio is ${ratioTxt(cur.SO4 / cur.Cl)}. ` +
+    (hard ? 'That is hard, alkaline water: pale beers need acid to bring the mash pH down. ' : '') +
+    (lowSO4 ? 'With so little sulphate, hoppy beers need sulphate added.' : '');
+}
+function renderWater(B) {
+  const W0 = B.filter(b => b.wd && b.wd.final);
+  const cur = tapNow() || {};
+  const ionVar = { SO4: '--s2', Cl: '--s1', Ca: '--s3', Mg: '--s4' };
+  $('#ionLegend').innerHTML = ['SO4', 'Cl', 'Ca', 'Mg'].map(i => `<span><i class="dot" style="background:var(${ionVar[i]})"></i>${ION_LABEL[i]} (${i})</span>`).join('') + `<span><i style="background:none;border-top:2px dashed var(--muted);border-radius:0;height:0;width:14px;vertical-align:3px"></i>${WS.label ? esc(WS.label) + ' tap' : 'Tap water'}</span>`;
+  const wTip = b => {
+    const wd = b.wd, f = wd.final, src = tapFor(b) || {};
+    return brewTip(b, `<div class="muted">Source: ${esc(wd.source || '–')}</div>` + IONS.map(i => tRow(`${ION_LABEL[i]} (${i})`, `${fmt(f[i], 0)} <span class="muted">(${ok(src[i]) ? (f[i] - src[i] >= 0 ? '+' : '') + fmt(f[i] - src[i], 0) : '–'})</span>`)).join('') +
+      tRow('SO4:Cl', ratioTxt(wd.ratio || f.SO4 / f.Cl)) + tRow('Mash pH plan / measured', fmt(wd.phPlan, 2) + ' / ' + fmt(wd.phMeas, 2)) +
+      tRow('Salts', Object.entries(wd.salts).map(([k, v]) => `${k} ${trim1(v)}${k === 'Lactic' || k === 'Phosphoric' ? ' ml' : ' g'}`).join(', ') || 'none'));
+  };
+  scatter($('#ionChart'), {
+    series: ['SO4', 'Cl', 'Ca', 'Mg'].map(i => ({ color: ionVar[i], points: W0.filter(b => ok(b.wd.final[i])).map(b => ({ x: ts(b), y: b.wd.final[i], tip: wTip(b) })) })),
+    refs: ['SO4', 'Cl', 'Ca', 'Mg'].filter(i => ok(cur[i])).map(i => ({ y: cur[i], color: ionVar[i] })),
+    lines: true, zero: true, H: 280,
+  });
+  $('#ratioLegend').innerHTML = `<span><i class="dot" style="background:var(--s1)"></i>Your brews</span><span><i style="background:var(--s3);opacity:.35"></i>Hoppy range 2:1 – 6:1</span><span><i style="background:none;border-top:2px dashed var(--s2);border-radius:0;height:0;width:14px;vertical-align:3px"></i>Tap water ${ratioTxt(cur.SO4 / cur.Cl)}</span>`;
+  scatter($('#ratioChart'), {
+    series: [{ color: '--s1', points: W0.map(b => ({ x: ts(b), y: b.wd.ratio || b.wd.final.SO4 / b.wd.final.Cl, tip: wTip(b) })).filter(p => ok(p.y)) }],
+    band: { lo: 2, hi: 6 }, refs: ok(cur.SO4) ? [{ y: cur.SO4 / cur.Cl, color: '--s2' }] : [], zero: true, yFmt: v => v === 0 ? '0' : ratioTxt(v),
+  });
+  $('#phLegend').innerHTML = `<span><i class="dot" style="background:var(--s1)"></i>Measured</span><span><i class="ring" style="border-color:var(--s2)"></i>Planned</span><span><i style="background:var(--s3);opacity:.35"></i>Target 5.2 – 5.4</span>`;
+  const act = [], plan = [], links = [];
+  W0.forEach(b => {
+    const wd = b.wd, tip = brewTip(b, tRow('Planned pH', fmt(wd.phPlan, 2)) + tRow('Measured pH', fmt(wd.phMeas, 2)) + tRow('Lactic acid', ok(wd.salts.Lactic) ? trim1(wd.salts.Lactic) + ' ml' : '–') + (wd.acidMaltKg ? tRow('Acid malt', fmt(wd.acidMaltKg, 2) + ' kg') : ''));
+    if (ok(wd.phPlan)) plan.push({ x: ts(b), y: wd.phPlan, tip });
+    if (ok(wd.phMeas)) act.push({ x: ts(b), y: wd.phMeas, tip });
+    if (ok(wd.phPlan) && ok(wd.phMeas)) links.push({ x: ts(b), a: wd.phPlan, b: wd.phMeas });
+  });
+  scatter($('#phChart'), { series: [{ points: plan, color: '--s2', hollow: true }, { points: act, color: '--s1' }], links, band: { lo: 5.2, hi: 5.4 }, yFmt: v => v.toFixed(1) });
+
+  const rows = W0.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.no - a.no);
+  const g = v => ok(v) && v ? trim1(v) : '<span class="muted">–</span>';
+  const dl = (i, f, s) => { if (!ok(f[i]) || !ok(s[i])) return ''; const d = f[i] - s[i]; return Math.abs(d) < 3 ? '' : `<span class="chip delta">${i} ${d > 0 ? '+' : '−'}${fmt(Math.abs(d), 0)}</span>`; };
+  $('#waterTbl').innerHTML = rows.length ? `<thead><tr><th>#</th><th>Brew</th><th>Source</th><th class="n">Gypsum</th><th class="n">CaCl2</th><th class="n">Epsom</th><th>Other</th><th class="n">Lactic</th>${['Ca', 'Mg', 'Na', 'Cl', 'SO4'].map(i => `<th class="n">${i}</th>`).join('')}<th class="n">SO4:Cl</th><th class="n">pH plan</th><th class="n">pH meas.</th><th>vs ${esc(WL)}</th></tr></thead><tbody>` +
+    rows.map(b => {
+      const wd = b.wd, f = wd.final, s = tapFor(b) || {};
+      const other = saltOther(wd).map(([k, v]) => `${esc(k)} ${trim1(v)} g`).concat(wd.acidMaltKg ? [`acid malt ${fmt(wd.acidMaltKg, 2)} kg`] : []).join(', ');
+      return `<tr${tipAttr(wTip(b))}><td class="n">${b.no}</td><td style="min-width:150px">${esc(b.name)}<div class="muted" style="font-size:11px">${dateNice(b.date)}</div></td><td class="muted" style="font-size:12px">${esc(wd.source || '–')}</td>` +
+        `<td class="n">${g(wd.salts.Gypsum)}</td><td class="n">${g(wd.salts.CaCl2)}</td><td class="n">${g(wd.salts.Epsom)}</td><td class="muted" style="font-size:12px">${other || '–'}</td><td class="n">${g(wd.salts.Lactic)}</td>` +
+        ['Ca', 'Mg', 'Na', 'Cl', 'SO4'].map(i => `<td class="n">${fmt(f[i], 0)}</td>`).join('') +
+        `<td class="n"><b>${ratioTxt(wd.ratio || f.SO4 / f.Cl)}</b></td><td class="n">${fmt(wd.phPlan, 2)}</td><td class="n">${fmt(wd.phMeas, 2)}</td><td>${['Ca', 'Mg', 'Cl', 'SO4'].map(i => dl(i, f, s)).join('')}</td></tr>`;
+    }).join('') + '</tbody>' : '<tbody><tr><td class="empty">No water data for these brews.</td></tr></tbody>';
+}
+
+/* Suggested salts: Epsom to the Mg target, CaCl2 to the Cl target, then gypsum for the rest of the SO4. */
+const SALT_PPM = { // ppm added per 1 g in 1 L
+  Gypsum: { Ca: 232.8, SO4: 557.9 }, CaCl2: { Ca: 272.6, Cl: 482.3 }, Epsom: { Mg: 98.6, SO4: 389.6 },
+};
+const SUGG = [
+  { key: 'IPA', title: 'West Coast IPA', why: 'Dry, crisp and bitter: sulphate well ahead of chloride.', SO4: 275, Cl: 50, Mg: 20, ph: [5.2, 5.3],
+    tips: ({ mine }) => {
+      const r = median(mine.slice(-10).map(b => b.wd.ratio)), mg = median(mine.slice(-10).map(b => b.wd.final.Mg));
+      return ['Aim for about 5:1 to 6:1.' + (ok(r) && r < 4.5 ? ` Your recent IPAs sat around ${ratioTxt(r)}, which softens the bitterness a West Coast beer needs.` : ''),
+        'Get the sulphate from gypsum rather than Epsom: above about 30 ppm magnesium can taste harsh or sour-bitter.' + (ok(mg) && mg > 25 ? ` Your recent IPAs averaged ${fmt(mg, 0)} ppm.` : ''),
+        'Mash pH 5.2 – 5.3 makes the beer crisper and the bitterness cleaner.'];
+    } },
+  { key: 'NEIPA', title: 'NEIPA / Hazy', why: 'Soft, round and juicy: chloride leads.', SO4: 100, Cl: 175, Mg: 12, ph: [5.3, 5.4],
+    tips: ({ src }) => ['Aim for about 1:2 (sulphate : chloride). Calcium chloride does most of the work.']
+      .concat(src.HCO3 > 120 ? [`${cap(WLW)}'s bicarbonate (${fmt(src.HCO3, 0)} ppm) fights a soft, pale hazy. Cutting it 50:50 with rain or RO water halves it and roughly halves the acid you need (re-run the numbers in Brewfather).`] : [])
+      .concat(['Mash pH 5.3 – 5.4: a little higher keeps the body round.']) },
+  { key: 'Pale', title: 'Pale ale / XPA', why: 'Balanced: sulphate leads, but gentler than an IPA.', SO4: 175, Cl: 70, Mg: 12, ph: [5.3, 5.35],
+    tips: ['Aim for about 2.5:1 to 3:1. Bright hop flavour with a bit of malt roundness.',
+      'Lower-gravity pale ales have less malt to buffer the bicarbonate, so acid per kg of grain is higher than in your IPAs.',
+      'Mash pH 5.3 – 5.35.'] },
+];
+function saltPlan(src, t, vol) {
+  const epsom = Math.max(0, t.Mg - src.Mg) / SALT_PPM.Epsom.Mg;
+  const cacl = Math.max(0, t.Cl - src.Cl) / SALT_PPM.CaCl2.Cl;
+  const gyp = Math.max(0, t.SO4 - src.SO4 - epsom * SALT_PPM.Epsom.SO4) / SALT_PPM.Gypsum.SO4;
+  const round = gpl => Math.round(gpl * vol * 2) / 2;
+  const grams = { Gypsum: round(gyp), CaCl2: round(cacl), Epsom: round(epsom) };
+  const res = { ...src };
+  Object.entries(grams).forEach(([k, gr]) => Object.entries(SALT_PPM[k]).forEach(([i, p]) => res[i] += gr / vol * p));
+  return { grams, res };
+}
+let waterVol = null;
+function renderSugg() {
+  const src = tapNow();
+  if (!src) { $('#sugg').innerHTML = `<div class="empty">No ${esc(WL)} source profile found. Set the water source on the Admin page.</div>`; return; }
+  const vols = D.brews.map(b => b.wd && b.wd.volume).filter(ok);
+  if (waterVol == null) { waterVol = Math.round((median(vols) || 33) * 2) / 2; $('#waterVol').value = waterVol; }
+  const hist = D.brews.filter(b => b.wd && b.wd.final && isTap(b.wd.source));
+  $('#sugg').innerHTML = SUGG.map(t => {
+    const { grams, res } = saltPlan(src, t, waterVol);
+    const mine = hist.filter(b => styleGroup(b) === t.key);
+    const acid = median(mine.map(b => b.wd.salts.Lactic));
+    const acidKg = median(mine.filter(b => ok(b.wd.salts.Lactic) && b.grainKg).map(b => b.wd.salts.Lactic / b.grainKg));
+    const ph = median(mine.map(b => b.wd.phPlan));
+    const avgR = median(mine.map(b => b.wd.ratio));
+    const salts = Object.entries(grams).filter(([, v]) => v > 0).map(([k, v]) => `<tr><td>${k === 'CaCl2' ? 'Calcium chloride' : k === 'Epsom' ? 'Epsom salt' : 'Gypsum'}</td><td class="n"><b>${trim1(v)} g</b></td></tr>`).join('');
+    const prof = ['Ca', 'Mg', 'Na', 'Cl', 'SO4'].map(i => `<tr><td>${i}</td><td class="n muted">${fmt(src[i], 0)}</td><td class="n"><b>${fmt(res[i], 0)}</b></td><td class="n">${t[i] != null ? fmt(t[i], 0) : '–'}</td><td class="n">${mine.length ? fmt(median(mine.map(b => b.wd.final[i])), 0) : '–'}</td></tr>`).join('');
+    return `<div class="col"><h4>${t.title}</h4><p class="why">${t.why}</p>
+      <div style="display:flex;gap:18px;align-items:baseline;margin-bottom:6px"><div><div class="note" style="margin:0">SO4:Cl</div><div class="big">${ratioTxt(res.SO4 / res.Cl)}</div></div>
+      <div><div class="note" style="margin:0">Mash pH</div><div class="big">${t.ph[0].toFixed(2)}–${t.ph[1].toFixed(2)}</div></div></div>
+      <table><thead><tr><th>Add to ${trim1(waterVol)} L</th><th class="n"></th></tr></thead><tbody>${salts}
+      <tr><td>Lactic acid 80%</td><td class="n">${ok(acidKg) ? '≈ ' + trim1(acidKg * 6.5) + ' ml' : 'to pH'}</td></tr></tbody></table>
+      <table style="margin-top:8px"><thead><tr><th>ppm</th><th class="n">Tap</th><th class="n">Result</th><th class="n">Target</th><th class="n">Yours</th></tr></thead><tbody>${prof}
+      <tr><td>SO4:Cl</td><td class="n muted">${ratioTxt(src.SO4 / src.Cl)}</td><td class="n"><b>${ratioTxt(res.SO4 / res.Cl)}</b></td><td class="n">${ratioTxt(t.SO4 / t.Cl)}</td><td class="n">${ratioTxt(avgR)}</td></tr></tbody></table>
+      <ul>${(typeof t.tips === 'function' ? t.tips({ src, mine }) : t.tips).map(x => `<li>${esc(x)}</li>`).join('')}
+      <li>${mine.length ? `Your ${mine.length} ${t.key === 'IPA' ? 'IPA' : t.key === 'NEIPA' ? 'hazy' : 'pale ale'} brews on ${esc(WLW)} used a median ${fmt(acid, 1)} ml lactic (${fmt(acidKg, 2)} ml per kg grain) for a planned pH of ${fmt(ph, 2)}. The acid line above assumes a 6.5 kg grist.` : `No brews of this style on ${esc(WLW)} yet, so start with Brewfather's acid estimate.`}</li></ul></div>`;
+  }).join('');
+  $('#suggNote').innerHTML = `Starting water: ${esc(src.name)} (Ca ${fmt(src.Ca, 0)}, Mg ${fmt(src.Mg, 0)}, Na ${fmt(src.Na, 0)}, Cl ${fmt(src.Cl, 0)}, SO4 ${fmt(src.SO4, 0)}, HCO3 ${fmt(src.HCO3, 0)}). ` +
+    `Grams are for the whole water volume; split them between mash and sparge in proportion to the water, or add them all to the mash. "Yours" is the median of your past brews of that style on ${esc(WLW)}. ` +
+    `Acid depends on the grist, so let Brewfather's pH estimate set the final amount. Calcium chloride is the dihydrate form.`;
+}
+const COLS = [
+  ['no', '#', 'n'], ['date', 'Brewed', ''], ['name', 'Brew', ''], ['style', 'Style', ''], ['og', 'OG', 'n', 3], ['fg', 'FG', 'n', 3],
+  ['abv', 'ABV %', 'n', 1], ['ibu', 'IBU', 'n', 0], ['ebc', 'EBC', 'n', 0], ['eff', 'Eff %', 'n', 0], ['hopgpl', 'Hops g/L', 'n', 1], ['rating', 'Rating', 'n', 0],
+];
+function renderLog(B) {
+  const rows = B.map(b => ({ ...b, hopgpl: b.hops.reduce((s, h) => s + h.g, 0) / b.size }));
+  const { k, dir } = S.sort;
+  rows.sort((a, b) => {
+    const x = a[k], y = b[k];
+    if (!ok(x) && typeof x !== 'string') return 1;
+    if (!ok(y) && typeof y !== 'string') return -1;
+    return (x > y ? 1 : x < y ? -1 : 0) * dir;
+  });
+  const head = '<thead><tr>' + COLS.map(([key, label, cls]) => `<th class="sortable ${cls}" data-sort="${key}">${label}${S.sort.k === key ? (S.sort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('') + '</tr></thead>';
+  if (!rows.length) { $('#log').innerHTML = head + `<tbody><tr><td colspan="${COLS.length}" class="empty">No brews match the filters.</td></tr></tbody>`; return; }
+  $('#log').innerHTML = head + '<tbody>' + rows.map(b => {
+    const open = S.open.has(b.id);
+    const cells = COLS.map(([key, , cls, d]) => {
+      let v = b[key];
+      if (key === 'date') v = dateNice(v);
+      else if (key === 'name') v = esc(v) + (b.status !== 'Completed' ? ` <span class="tag-fermenting">${esc(b.status)}</span>` : '');
+      else if (key === 'style') v = `<span class="muted">${esc(v)}</span>`;
+      else if (d != null) v = fmt(v, d);
+      else v = esc(v);
+      return `<td class="${cls}">${v}</td>`;
+    }).join('');
+    return `<tr class="row${open ? ' open' : ''}" data-id="${esc(b.id)}">${cells}</tr>` + (open ? `<tr class="detail"><td colspan="${COLS.length}">${detail(b)}</td></tr>` : '');
+  }).join('') + '</tbody>';
+}
+function detail(b) {
+  const malt = `<table><thead><tr><th>Fermentable</th><th class="n">kg</th><th class="n">%</th></tr></thead><tbody>` +
+    b.ferms.map(f => `<tr><td><i class="dotk" style="background:var(${GRIST_VAR[gristKey(f.group)]})"></i>${esc(f.name)}</td><td class="n">${fmt(f.kg, 2)}</td><td class="n">${fmt(f.pct, 1)}</td></tr>`).join('') +
+    `<tr><td><b>Total</b></td><td class="n"><b>${fmt(b.grainKg, 2)}</b></td><td></td></tr></tbody></table>`;
+  const order = h => STAGES.indexOf(h.stage) * 1000 - (h.stage === 'Dry hop' ? -(h.day || 0) : (h.time || 0));
+  const hops = `<table><thead><tr><th>Stage</th><th>Hop</th><th class="n">g</th><th class="n">g/L</th><th>When</th></tr></thead><tbody>` +
+    [...b.hops].sort((x, y) => order(x) - order(y)).map(h => `<tr><td><i class="dotk" style="background:var(${STAGE_VAR[h.stage] || '--muted'})"></i>${esc(h.stage)}</td><td>${esc(h.name)}${ok(h.alpha) ? ` <span class="muted">${h.alpha}%</span>` : ''}</td><td class="n">${fmt(h.g, 0)}</td><td class="n">${fmt(h.gpl, 2)}</td><td class="muted">${esc(hopTiming(h))}</td></tr>`).join('') + '</tbody></table>';
+  const pv = (label, a, p, d, u = '') => `<tr><td>${label}</td><td class="n">${fmt(a, d)}${u}</td><td class="n muted">${fmt(p, d)}${u}</td></tr>`;
+  const nums = `<table><thead><tr><th></th><th class="n">Actual</th><th class="n">Plan</th></tr></thead><tbody>` +
+    pv('OG', b.og, b.ogPlan, 3) + pv('FG', b.fg, b.fgPlan, 3) + pv('ABV', b.abv, b.abvPlan, 1, '%') + pv('Efficiency', b.eff, b.effPlan, 1, '%') +
+    pv('Attenuation', b.att, b.attPlan, 1, '%') + pv('Batch size', b.sizeActual, b.size, 1, ' L') +
+    `<tr><td>IBU</td><td></td><td class="n muted">${fmt(b.ibu, 0)}</td></tr><tr><td>Colour</td><td></td><td class="n muted">${fmt(b.ebc, 0)} EBC</td></tr>` +
+    `<tr><td>Mash</td><td colspan="2" class="n">${ok(b.mashTemp) ? b.mashTemp + '°C' : '–'}</td></tr><tr><td>Boil</td><td colspan="2" class="n">${ok(b.boil) ? b.boil + ' min' : '–'}</td></tr>` +
+    `<tr><td>Yeast</td><td colspan="2" class="n">${b.yeasts.map(esc).join('<br>') || '–'}</td></tr></tbody></table>`;
+  const recipe = b.recipe && b.recipe !== b.name ? `<p class="note" style="margin:0 0 10px">Recipe: ${esc(b.recipe)}</p>` : '';
+  return recipe + `<div class="cols"><div><h3>Malt bill</h3>${malt}</div><div><h3>Hop schedule</h3>${hops}</div><div><h3>Numbers</h3>${nums}</div></div>` + flavourBlock(b);
+}
+function flavourBlock(b) {
+  const p = b.flavour;
+  if (!p) return `<div class="flavrow"><div><h3>Hop flavour</h3><p class="note">No late, whirlpool or dry hops with flavour data in this brew.</p></div></div>`;
+  const miss = p.missing.length ? ` No data for ${esc(p.missing.join(', '))} (add it to hop_flavours_extra.json).` : '';
+  return `<div class="flavrow"><div><h3>Hop flavour</h3>${HopRadar.inline(p)}</div>` +
+    `<div><h3>Strongest: ${p.top.map(esc).join(', ')}</h3>${HopRadar.hopList(p)}` +
+    `<p class="note">Aroma scores 0 to 5 from HopDatabase (supplier data), averaged by grams of late boil (half weight), whirlpool and dry hops. Bittering hops are left out.${miss}</p>` +
+    `<p style="margin:10px 0 0"><button type="button" data-png="${esc(b.id)}">Save PNG for Brewfather</button></p></div></div>`;
+}
+
+/* ------------------------------------------------------------ wiring */
+function render() {
+  const B = filtered();
+  const parts = [];
+  if (S.style) parts.push(S.style);
+  if (S.hop) parts.push('with ' + S.hop);
+  $('#count').textContent = `${B.length} of ${D.brews.length} brews` + (parts.length ? ' · ' + parts.join(' · ') : '');
+  renderTiles(B); renderHopBars(B); renderCombos(B); renderBitter(B); renderHeat(B); renderRate(B);
+  renderGrist(B); renderMalts(B); renderWater(B); renderAbv(B); renderEff(B); renderYeasts(B); renderLog(B);
+}
+document.addEventListener('click', e => {
+  const png = e.target.closest('[data-png]');
+  if (png) {
+    const b = D.brews.find(x => x.id === png.dataset.png);
+    if (b && b.flavour) HopRadar.savePng(b.flavour, { title: b.name, sub: `Batch #${b.no} · ${dateNice(b.date)} · ${b.style}`, file: `#${b.no} ${b.name}` });
+    return;
+  }
+  const hop = e.target.closest('[data-hop]');
+  if (hop) { setHop(hop.dataset.hop); return; }
+  const th = e.target.closest('th[data-sort]');
+  if (th) { const k = th.dataset.sort; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : (k === 'name' || k === 'style' ? 1 : -1) }; renderLog(filtered()); return; }
+  const row = e.target.closest('tr.row');
+  if (row) { const id = row.dataset.id; S.open.has(id) ? S.open.delete(id) : S.open.add(id); renderLog(filtered()); }
+});
+const tip = $('#tip');
+function showTip(e) {
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if (!t) { tip.style.display = 'none'; return; }
+  tip.innerHTML = t.getAttribute('data-tip');
+  tip.style.display = 'block';
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = Math.max(8, e.clientY - r.height - 14);
+  tip.style.left = Math.max(8, x) + 'px'; tip.style.top = y + 'px';
+}
+document.addEventListener('mousemove', showTip);
+document.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') showTip(e); });
+document.addEventListener('scroll', () => tip.style.display = 'none', true);
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+
+const first = D.brews[0], last = D.brews[D.brews.length - 1];
+$('#subtitle').innerHTML = `${D.brews.length} brews from Brewfather, ${dateNice(first.date)} to ${dateNice(last.date)}.`;
+$('#gen').textContent = `Generated ${D.generated} from the Brewfather API.`;
+initFilters();
+renderSources();
+renderSugg();
+$('#waterVol').oninput = e => { const v = parseFloat(e.target.value); if (v >= 5 && v <= 100) { waterVol = v; renderSugg(); } };
+render();
+</script>
+</body>
+</html>

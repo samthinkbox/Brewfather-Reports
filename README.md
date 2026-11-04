@@ -1,0 +1,115 @@
+# Brewfather Reports
+
+© 2026 Thinkbox · MIT licence · see [TERMS.md](TERMS.md). Not affiliated with or endorsed by Brewfather.
+
+Reports on your own brewing history from your Brewfather account: hops, malt, water, results,
+recipe versions and hop flavour charts. It runs on your own computer or server with your own
+Brewfather API key, and your data stays there.
+
+## Install
+
+1. Install Python 3.9 or newer (python.org). Nothing else is needed: it uses only Python's standard library.
+2. Unzip the package somewhere, for example `Documents/Brewfather Reports`.
+3. Start it: double-click `start.bat` (Windows), or run `./start.sh` (Mac/Linux), or `python server.py`.
+4. Open http://localhost:8765/admin.html. The first time, it asks for:
+   - the **setup code** shown in the server window,
+   - your **Brewfather User ID and API key** (Brewfather › Settings › API › Generate key; give it read access
+     to batches and recipes),
+   - an **admin password** for this site.
+
+It then downloads your brews and builds the pages. Keep the server window open while you use it.
+
+To run it on a public web server, see [DEPLOY.md](DEPLOY.md).
+
+## Pages
+
+Every page has the same header with links to the others.
+
+- **Brew History** (`report.html`)
+  - **Hops:** amounts by stage (bittering, late boil, whirlpool, dry hop), and the flavour/aroma hop
+    pairs, trios and full line-ups you use.
+  - **Bittering hops:** a table of usage, alpha acid, IBU and timing.
+  - **Malt bill:** the make-up of each grist.
+  - **Water:** your tap water profiles, final Ca/Mg/Cl/SO4 per brew, the SO4:Cl ratio (e.g. 5.5:1), planned
+    vs measured mash pH, salts and acid per brew, and suggested salts for West Coast IPA, NEIPA and pale ale.
+  - **Results:** planned vs actual ABV and efficiency, and attenuation.
+  - **Brew log:** click a brew for its details and a hop flavour chart.
+- **Recipe versions** (`versions.html`): what changed between brews of the same recipe, and how it turned out.
+- **Admin:** see below.
+- **Terms:** copyright, licence and terms of use.
+
+CSV files (`brews.csv`, `hops.csv`, `malts.csv`) can be downloaded from the Admin page.
+
+## Admin page
+
+- **Data:** fetch from Brewfather and rebuild, rebuild from saved data, or update hop data. The progress log shows as it runs.
+- **Brews in the reports:** untick a brew to leave it out (it is saved in `exclude.txt`). Brews with `#noreport` in a
+  Brewfather batch note are always left out.
+- **Settings:**
+  - Site title.
+  - Your tap water profile, used in the Water section.
+  - Automatic fetching (every 1 to 24 hours, while the server runs).
+  - Whether the report pages need a sign-in. They are private by default.
+- **Recipe families:** which brews belong together on the Recipe versions page (`families.txt`).
+- **Extra hop flavours:** aroma scores for hops HopDatabase doesn't have (`hop_flavours_extra.json`).
+- **Brewfather connection:** test the connection, or change the User ID and API key.
+- **Downloads:** the CSV files and a JSON backup of every batch.
+- **Admin password:** change it, or sign out.
+
+## Hop flavour charts
+
+The charts use the aroma scores (Citrus, Resin/Pine, Spice, Herbal, Grassy, Floral, Berry, Stone Fruit,
+Tropical Fruit, 0 to 5) from the [HopDatabase](https://github.com/kasperg3/HopDatabase) project, which
+collects them from hop suppliers. A brew's chart averages its hops by grams:
+
+- whirlpool and dry hops count in full,
+- late-boil hops count half,
+- bittering hops are left out.
+
+**Save PNG for Brewfather** saves the chart as a 1000 × 1000 image to add to a recipe or batch in the
+Brewfather app. Brewfather's API can't upload images.
+
+## Command line
+
+```
+python server.py                  # the web server (Admin page and reports)
+python run.py                     # fetch from Brewfather and build the pages without the server
+python run.py --offline           # rebuild from the saved data
+python run.py --update-hops       # download the latest HopDatabase hop data first
+```
+
+## Files
+
+| File | What it is |
+|---|---|
+| `.env` | Your Brewfather User ID and API key (written by the Admin page). Keep it private. |
+| `data/` | Downloaded brews, settings and the admin password hash. Back it up; never share it. |
+| `output/` | The built pages. |
+| `hopdata/` | Hop aroma data from HopDatabase (MIT licence). |
+| `exclude.txt`, `families.txt`, `hop_flavours_extra.json` | Your settings, also editable on the Admin page. |
+
+Colours are shown in EBC (Brewfather stores SRM; EBC = SRM × 1.97).
+
+## Next Brew (optional, personal)
+
+`next_brew.py` builds recipe ideas from your own brews and can create them in Brewfather
+(`python next_brew.py --upload`). Its recipes, water profile and template recipe are set up for one
+brewer, so it is not included in the package. Turn the page on in Admin › Settings once you have adapted it.
+
+## Building the package
+
+`python build_package.py` writes `dist/brewfather-reports-<version>.zip`. It leaves out `.env`, `data/`,
+`output/` and `next_brew.py`. The version number is in `version.py`.
+
+
+## Shutting app down
+
+Click in the cmd window where the server is running and press Ctrl+C. The server stops, and the window shows “Press any key to continue”. Press any key to close it.
+
+You can also just close the cmd window with its X. Nothing is lost, because your data and settings are already saved in the folder.
+
+Some things to know:
+
+If you close it while a fetch or rebuild is running, that run is cut short. Click the button again next time.
+Automatic fetching only happens while the server is running.
+To look at your history again, double-click start.bat and open http://localhost:8765. You’ll only need your admin password; the setup code was for the first time.

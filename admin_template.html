@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --border: rgba(11,11,11,0.10); --hover: rgba(11,11,11,0.04);
+  --accent: #2a78d6; --accent-soft: #cde2fb; --good: #1a7f37; --bad: #c4314b; --warn-bg: #fff4d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.05);
+    --accent: #3987e5; --accent-soft: #184f95; --good: #3fb950; --bad: #f47067; --warn-bg: #3a2f0b;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.05);
+  --accent: #3987e5; --accent-soft: #184f95; --good: #3fb950; --bad: #f47067; --warn-bg: #3a2f0b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 32px; }
+h1 { font-size: 26px; margin: 0 0 2px; letter-spacing: -0.01em; }
+h2 { font-size: 18px; margin: 0 0 10px; }
+h3 { font-size: 14px; margin: 0 0 8px; color: var(--ink-2); font-weight: 600; }
+.sub { color: var(--ink-2); margin: 0 0 16px; }
+.note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+section { margin-top: 28px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.narrow { max-width: 520px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile .k { font-size: 12px; color: var(--ink-2); }
+.tile .v { font-size: 22px; font-weight: 600; margin-top: 2px; }
+.tile .s { font-size: 12px; color: var(--muted); }
+label.f { display: block; margin: 0 0 12px; font-size: 13px; color: var(--ink-2); }
+label.f > span { display: block; margin-bottom: 4px; font-weight: 600; }
+label.chk { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 12px; font-size: 13px; color: var(--ink-2); }
+label.chk input { margin-top: 3px; }
+input[type=text], input[type=password], input[type=number], select, textarea {
+  font: inherit; color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; width: 100%; }
+textarea { font: 12px/1.5 ui-monospace, Consolas, monospace; min-height: 220px; resize: vertical; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+button:hover { background: var(--hover); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.primary:hover { filter: brightness(1.08); }
+button:disabled { opacity: .5; cursor: default; }
+a.btnlink { display: inline-block; color: var(--ink); text-decoration: none; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; }
+a.btnlink:hover { background: var(--hover); }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.msg { font-size: 13px; margin: 8px 0 0; min-height: 1em; }
+.msg.ok { color: var(--good); } .msg.bad { color: var(--bad); }
+pre.log { background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font: 12px/1.5 ui-monospace, Consolas, monospace;
+  max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 12px 0 0; color: var(--ink-2); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.ok::before { background: var(--good); } .pill.bad::before { background: var(--bad); } .pill.run::before { background: var(--accent); }
+.tbl-wrap { overflow: auto; max-height: 420px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--ink-2); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: var(--surface); }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.banner { background: var(--warn-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+code { font: 12px ui-monospace, Consolas, monospace; background: var(--page); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+a { color: var(--accent); }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+<h1>Admin</h1>
+<p class="sub" id="sub">Loading…</p>
+
+<!-- the page was opened without the server -->
+<div id="offline" class="card narrow" hidden>
+  <h2>Start the Brewfather Reports server</h2>
+  <p>The Admin page needs the Brewfather Reports server, which isn't running at this address. In the Brewfather Reports folder run:</p>
+  <p><code>python server.py</code></p>
+  <p>then open <a href="http://localhost:8765/admin.html">http://localhost:8765/admin.html</a>.</p>
+</div>
+
+<!-- first-time setup -->
+<form id="setup" class="card narrow" hidden autocomplete="off">
+  <h2>Set up Brewfather Reports</h2>
+  <p class="note" style="margin:0 0 14px">Your Brewfather User ID and API key are stored only on this server. Create them in Brewfather › Settings › API with read access to batches and recipes (add write access to recipes if you'll send Next Brew recipes).</p>
+  <label class="f"><span>Setup code</span><input type="text" name="code" required placeholder="ABCD-1234-EF56" autocomplete="one-time-code">
+    <span class="note" style="font-weight:400">Shown in the window where the server is running.</span></label>
+  <label class="f"><span>Brewfather User ID</span><input type="text" name="userId" autocomplete="off" spellcheck="false"></label>
+  <label class="f"><span>Brewfather API key</span><input type="password" name="apiKey" autocomplete="off"></label>
+  <p class="note" id="keepKey" hidden style="margin:-6px 0 12px">A key is already saved in .env. Leave both empty to keep it.</p>
+  <label class="f"><span>Admin password (at least 10 characters)</span><input type="password" name="password" autocomplete="new-password" required minlength="10"></label>
+  <label class="f"><span>Repeat password</span><input type="password" name="password2" autocomplete="new-password" required minlength="10"></label>
+  <label class="chk"><input type="checkbox" name="accept" required> <span>I have read and accept the <a href="terms.html" target="_blank">terms and licence</a>.</span></label>
+  <button class="primary" type="submit">Connect and fetch my brews</button>
+  <p class="msg" id="setupMsg" role="status"></p>
+</form>
+
+<!-- sign in -->
+<form id="login" class="card narrow" hidden>
+  <h2>Sign in</h2>
+  <label class="f"><span>Admin password</span><input type="password" name="password" autocomplete="current-password" required></label>
+  <button class="primary" type="submit">Sign in</button>
+  <p class="msg" id="loginMsg" role="status"></p>
+</form>
+
+<div id="app" hidden>
+  <section style="margin-top:0">
+    <div class="card">
+      <div class="btns" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Data</h2><span id="jobPill" class="pill">Idle</span></div>
+      <div class="tiles" id="tiles"></div>
+      <div class="btns" style="margin-top:16px">
+        <button class="primary" type="button" data-job="refresh">Fetch from Brewfather and rebuild</button>
+        <button type="button" data-job="rebuild">Rebuild pages from saved data</button>
+        <button type="button" data-job="hops">Update hop data</button>
+        <button type="button" data-job="upload" id="uploadBtn" hidden>Send Next Brew recipes to Brewfather (writes)</button>
+      </div>
+      <p class="note">Fetching uses about one Brewfather API call per 50 brews. "Update hop data" downloads the latest hop aroma data from HopDatabase on GitHub.</p>
+      <pre class="log" id="log" hidden></pre>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Brews in the reports</h2>
+      <p class="note" style="margin:-4px 0 10px">Untick a brew to leave it out of every report and CSV (it is listed in exclude.txt). Brews with <code>#noreport</code> in a Brewfather note are always left out.</p>
+      <div class="banner" id="exDirty" hidden>Changes saved. <button type="button" data-job="rebuild">Rebuild pages now</button></div>
+      <div class="tbl-wrap" style="margin-top:10px"><table id="brews"></table></div>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <form class="card" id="settings">
+      <h2>Settings</h2>
+      <label class="f"><span>Site title</span><input type="text" name="site_title" maxlength="60"></label>
+      <label class="f"><span>Your tap water profile</span><select id="waterPick"><option value="">Choose a Brewfather water source…</option></select>
+        <span class="note" style="font-weight:400">Used as the starting water in the Water section.</span></label>
+      <label class="f"><span>Water source match <span class="muted" style="font-weight:400">(advanced)</span></span><input type="text" name="water_pattern" spellcheck="false" placeholder="every source">
+        <span class="note" style="font-weight:400">Words separated by | that match your tap water source names, e.g. <code>townname|bore</code>.</span></label>
+      <label class="f"><span>Water name</span><input type="text" name="water_label" maxlength="40" placeholder="tap"></label>
+      <label class="f"><span>Fetch from Brewfather automatically</span><select name="auto_refresh_hours">
+        <option value="0">Off</option><option value="1">Every hour</option><option value="3">Every 3 hours</option><option value="6">Every 6 hours</option><option value="12">Every 12 hours</option><option value="24">Once a day</option></select>
+        <span class="note" style="font-weight:400">Runs while the server is running.</span></label>
+      <label class="chk"><input type="checkbox" name="public_reports"> <span><b>Reports visible without sign-in.</b> Anyone who can reach this server can see your brew history. The Admin page always needs the password.</span></label>
+      <label class="chk" id="nbRow" hidden><input type="checkbox" name="next_brew"> <span><b>Next Brew page.</b> Recipe ideas from next_brew.py (set up for your own recipes).</span></label>
+      <button class="primary" type="submit">Save and rebuild</button>
+      <p class="msg" id="settingsMsg" role="status"></p>
+    </form>
+
+    <div class="card">
+      <h2>Brewfather connection</h2>
+      <p id="conn" class="note" style="margin:0 0 12px"></p>
+      <div class="btns"><button type="button" id="testBtn">Test connection</button></div>
+      <p class="msg" id="testMsg" role="status"></p>
+      <form id="creds" style="margin-top:12px" autocomplete="off">
+        <h3>Change User ID or API key</h3>
+        <label class="f"><span>Brewfather User ID</span><input type="text" name="userId" required spellcheck="false"></label>
+        <label class="f"><span>Brewfather API key</span><input type="password" name="apiKey" required autocomplete="off"></label>
+        <button type="submit">Test and save</button>
+        <p class="msg" id="credsMsg" role="status"></p>
+      </form>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>Recipe families</h2>
+      <p class="note" style="margin:-4px 0 10px">One family per line for the Recipe versions page, e.g. <code>Pale ale: 12, 15, 21, 30</code>.</p>
+      <textarea id="f_families" spellcheck="false" aria-label="families.txt"></textarea>
+      <div class="btns" style="margin-top:8px"><button type="button" data-save="families.txt" data-src="f_families">Save and rebuild</button></div>
+      <p class="msg" id="msg_families.txt" role="status"></p>
+    </div>
+    <div class="card">
+      <h2>Extra hop flavours</h2>
+      <p class="note" style="margin:-4px 0 10px">Aroma scores (0 to 5) for hops HopDatabase is missing, and aliases for hop names. JSON.</p>
+      <textarea id="f_hops" spellcheck="false" aria-label="hop_flavours_extra.json"></textarea>
+      <div class="btns" style="margin-top:8px"><button type="button" data-save="hop_flavours_extra.json" data-src="f_hops">Save and rebuild</button></div>
+      <p class="msg" id="msg_hop_flavours_extra.json" role="status"></p>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>Downloads</h2>
+      <div class="btns" id="downloads"></div>
+      <p class="note">The CSV files open in Excel or Google Sheets. The backup is every batch exactly as Brewfather sent it.</p>
+    </div>
+    <form class="card" id="password">
+      <h2>Admin password</h2>
+      <label class="f"><span>Current password</span><input type="password" name="current" autocomplete="current-password" required></label>
+      <label class="f"><span>New password (at least 10 characters)</span><input type="password" name="new" autocomplete="new-password" required minlength="10"></label>
+      <div class="btns"><button type="submit">Change password</button><button type="button" id="logout">Sign out</button></div>
+      <p class="msg" id="pwMsg" role="status"></p>
+    </form>
+  </section>
+</div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const when = t => t ? new Date(t * 1000).toLocaleString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '–';
+const dateNice = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+let ST = null, polling = null;
+
+async function api(path, body) {
+  const opt = body === undefined ? { credentials: 'same-origin' }
+    : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-BFR': '1' }, body: JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  let j;
+  try { j = await r.json(); } catch (e) { throw Object.assign(new Error('The server did not answer.'), { offline: true }); }
+  if (!r.ok || j.ok === false) throw new Error(j.error || 'Something went wrong.');
+  return j;
+}
+function say(id, text, good) { const el = document.getElementById(id); el.textContent = text || ''; el.className = 'msg' + (text ? (good ? ' ok' : ' bad') : ''); }
+function show(id) { ['offline', 'setup', 'login', 'app'].forEach(k => $('#' + k).hidden = k !== id); }
+
+async function load() {
+  try { ST = await api('/api/status'); }
+  catch (e) { show('offline'); $('#sub').textContent = 'The server is not running.'; return; }
+  $('#sub').textContent = `${ST.name} ${ST.version} · ${ST.copyright}`;
+  if (ST.setupNeeded) { show('setup'); $('#keepKey').hidden = !ST.credsSet; return; }
+  if (!ST.loggedIn) { show('login'); $('#login [name=password]').focus(); return; }
+  show('app');
+  renderApp();
+}
+
+function renderApp() {
+  const d = ST.data, h = ST.hops;
+  $('#tiles').innerHTML = [
+    ['Brews downloaded', d.batches, ''],
+    ['Last fetched', when(d.fetched), ''],
+    ['Pages built', when(d.built), ''],
+    ['Hops with flavour data', h.hops, h.updated ? 'Hop data from ' + when(h.updated).replace(/,.*$/, '') : 'No hop data file'],
+  ].map(([k, v, s]) => `<div class="tile card"><div class="k">${k}</div><div class="v">${esc(v)}</div>${s ? `<div class="s">${esc(s)}</div>` : ''}</div>`).join('');
+  const nb = ST.nextBrew;
+  $('#uploadBtn').hidden = !(nb.available && ST.settings.next_brew);
+  $('#nbRow').hidden = !nb.available;
+  const f = $('#settings');
+  Object.entries(ST.settings).forEach(([k, v]) => { const el = f.elements[k]; if (!el) return; if (el.type === 'checkbox') el.checked = !!v; else el.value = v; });
+  $('#waterPick').innerHTML = '<option value="">Choose a Brewfather water source…</option>' + ST.waterSources.map(n => `<option>${esc(n)}</option>`).join('');
+  $('#conn').innerHTML = ST.credsSet ? `Connected as User ID <code>${esc(ST.userId)}</code>. The API key is stored in <code>.env</code> on this server and is never shown here.` : 'No Brewfather User ID and API key saved yet.';
+  $('#downloads').innerHTML = ST.downloads.map(n => `<a class="btnlink" href="${esc(n)}" download>${esc(n)}</a>`).join('') +
+    (d.batches ? '<a class="btnlink" href="/api/download/batches.json">Backup: all batches (JSON)</a>' : '');
+  showJob(ST.job);
+  if (ST.job.running) poll();
+  loadBrews(); loadFile('families.txt', 'f_families'); loadFile('hop_flavours_extra.json', 'f_hops');
+}
+
+function showJob(j) {
+  const p = $('#jobPill');
+  if (!j || !j.name) { p.className = 'pill'; p.textContent = 'Idle'; return; }
+  p.className = 'pill ' + (j.running ? 'run' : j.ok ? 'ok' : 'bad');
+  p.textContent = j.running ? `${j.label}…` : `${j.label}: ${j.ok ? 'done' : 'failed'} ${when(j.finished)}`;
+  const log = $('#log');
+  log.hidden = !j.log;
+  log.textContent = j.log;
+  log.scrollTop = log.scrollHeight;
+  document.querySelectorAll('[data-job]').forEach(b => b.disabled = j.running);
+}
+function poll() {
+  if (polling) return;
+  polling = setInterval(async () => {
+    try {
+      const j = await api('/api/job');
+      showJob(j);
+      if (!j.running) { clearInterval(polling); polling = null; const s = await api('/api/status'); ST = s; renderApp(); }
+    } catch (e) { clearInterval(polling); polling = null; }
+  }, 1500);
+}
+
+async function loadBrews() {
+  const rows = await api('/api/brews');
+  $('#brews').innerHTML = '<thead><tr><th class="n">#</th><th>Brew</th><th>Brewed</th><th>Status</th><th>In reports</th></tr></thead><tbody>' +
+    (rows.length ? rows.map(b => `<tr><td class="n">${b.no}</td><td>${esc(b.name)}</td><td class="muted">${dateNice(b.date)}</td><td class="muted">${esc(b.status)}</td><td>${b.noreport
+      ? '<span class="muted">#noreport</span>'
+      : `<label class="chk" style="margin:0"><input type="checkbox" data-ex="${b.no}"${b.excluded ? '' : ' checked'} aria-label="Include brew ${b.no} in reports"> <span>${b.excluded ? 'Left out' : 'Included'}</span></label>`}</td></tr>`).join('')
+      : '<tr><td colspan="5" class="muted">No brews downloaded yet. Click "Fetch from Brewfather and rebuild".</td></tr>') + '</tbody>';
+}
+async function loadFile(name, id) {
+  try { $('#' + id).value = (await api('/api/file?name=' + encodeURIComponent(name))).content; } catch (e) { /* shown on save */ }
+}
+
+/* ---- events */
+$('#setup').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target.elements;
+  if (f.password.value !== f.password2.value) return say('setupMsg', 'The two passwords are different.');
+  say('setupMsg', 'Checking your Brewfather key…', true);
+  e.target.querySelector('button').disabled = true;
+  try {
+    await api('/api/setup', { code: f.code.value, userId: f.userId.value, apiKey: f.apiKey.value, password: f.password.value, accept: f.accept.checked });
+    load();
+  } catch (err) { say('setupMsg', err.message); }
+  e.target.querySelector('button').disabled = false;
+});
+$('#login').addEventListener('submit', async e => {
+  e.preventDefault();
+  try {
+    await api('/api/login', { password: e.target.elements.password.value });
+    const next = new URLSearchParams(location.search).get('next');
+    if (next && /^[A-Za-z0-9_.-]+\.html$/.test(next)) { location.href = next; return; }
+    e.target.reset(); load();
+  } catch (err) { say('loginMsg', err.message); }
+});
+document.addEventListener('click', async e => {
+  const jb = e.target.closest('[data-job]');
+  if (jb) {
+    if (jb.dataset.job === 'upload' && !confirm('This creates or updates the Next Brew recipes in your Brewfather account. Continue?')) return;
+    try { await api('/api/job', { name: jb.dataset.job }); $('#exDirty').hidden = true; showJob({ name: jb.dataset.job, label: jb.textContent, running: true, log: 'Starting…' }); poll(); }
+    catch (err) { alert(err.message); }
+    return;
+  }
+  const sv = e.target.closest('[data-save]');
+  if (sv) {
+    const name = sv.dataset.save;
+    try { await api('/api/file', { name, content: $('#' + sv.dataset.src).value }); say('msg_' + name, 'Saved. Rebuilding the pages…', true); poll(); }
+    catch (err) { say('msg_' + name, err.message); }
+  }
+});
+document.addEventListener('change', async e => {
+  const cb = e.target.closest('[data-ex]');
+  if (!cb) return;
+  try {
+    await api('/api/exclude', { no: +cb.dataset.ex, exclude: !cb.checked });
+    cb.nextElementSibling.textContent = cb.checked ? 'Included' : 'Left out';
+    $('#exDirty').hidden = false;
+  } catch (err) { alert(err.message); cb.checked = !cb.checked; }
+});
+$('#waterPick').addEventListener('change', e => {
+  const n = e.target.value, f = $('#settings').elements;
+  if (!n) return;
+  f.water_pattern.value = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (!f.water_label.value) f.water_label.value = n;
+});
+$('#settings').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target.elements, body = {};
+  ['site_title', 'water_pattern', 'water_label', 'auto_refresh_hours'].forEach(k => body[k] = f[k].value);
+  ['public_reports', 'next_brew'].forEach(k => body[k] = f[k].checked);
+  try { const r = await api('/api/settings', body); ST.settings = r.settings; say('settingsMsg', 'Saved. Rebuilding the pages…', true); poll(); }
+  catch (err) { say('settingsMsg', err.message); }
+});
+$('#testBtn').addEventListener('click', async () => {
+  say('testMsg', 'Testing…', true);
+  try { const r = await api('/api/test', {}); say('testMsg', r.ok ? 'Brewfather accepted the key.' : r.error, r.ok); }
+  catch (err) { say('testMsg', err.message); }
+});
+$('#creds').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target.elements;
+  say('credsMsg', 'Testing with Brewfather…', true);
+  try { await api('/api/credentials', { userId: f.userId.value, apiKey: f.apiKey.value }); e.target.reset(); say('credsMsg', 'Saved.', true); ST = await api('/api/status'); renderApp(); }
+  catch (err) { say('credsMsg', err.message); }
+});
+$('#password').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target.elements;
+  try { await api('/api/password', { current: f.current.value, new: f.new.value }); e.target.reset(); say('pwMsg', 'Password changed. Other sessions were signed out.', true); }
+  catch (err) { say('pwMsg', err.message); }
+});
+$('#logout').addEventListener('click', async () => { await api('/api/logout', {}); load(); });
+load();
+</script>
+</body>
+</html>

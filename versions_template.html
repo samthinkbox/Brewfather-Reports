@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recipe Versions</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --hover: rgba(11,11,11,0.04);
+  --accent: #2a78d6; --accent-soft: #e3eefc; --accent-ink: #1c5cab;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.05);
+    --accent: #3987e5; --accent-soft: #1b2a3d; --accent-ink: #86b6ef;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.05);
+  --accent: #3987e5; --accent-soft: #1b2a3d; --accent-ink: #86b6ef;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+a { color: var(--accent-ink); }
+h1 { font-size: 26px; margin: 0 0 2px; letter-spacing: -0.01em; }
+h2 { font-size: 18px; margin: 28px 0 10px; }
+h3 { font-size: 14px; margin: 0 0 8px; color: var(--ink-2); font-weight: 600; }
+.sub { color: var(--ink-2); margin: 0 0 16px; }
+.note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.stack > * + * { margin-top: 12px; }
+
+.fams { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--page); z-index: 5; }
+@media (max-width: 760px) { .fams { position: static; } }
+.fams button { font: inherit; font-size: 13px; color: var(--ink); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.fams button:hover { background: var(--hover); }
+.fams button[aria-current=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.fams button span { opacity: .7; margin-left: 4px; font-size: 12px; }
+
+.timeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 16px; }
+.ver .v { font-size: 12px; color: var(--accent-ink); font-weight: 600; }
+.ver .nm { font-weight: 600; font-size: 15px; margin: 2px 0; }
+.ver .dt { font-size: 12px; color: var(--muted); }
+.ver .kv { display: flex; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+.ver .kv b { color: var(--ink); font-size: 16px; display: block; font-variant-numeric: tabular-nums; }
+
+.step-h { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: 10px; }
+.step-h .t { font-weight: 600; font-size: 15px; }
+.step-h .gap { color: var(--muted); font-size: 12px; }
+.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 20px; }
+.group h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.group ul { margin: 0; padding: 0; list-style: none; }
+.group li { padding: 3px 0; display: flex; gap: 8px; align-items: baseline; }
+.tag { flex: none; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; padding: 1px 6px;
+  border-radius: 4px; border: 1px solid var(--border); color: var(--ink-2); background: var(--hover); min-width: 58px; text-align: center; }
+.tag.add { color: var(--accent-ink); border-color: var(--accent); }
+.tag.drop { color: var(--muted); text-decoration: line-through; }
+.result { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--grid); font-size: 13px; color: var(--ink-2);
+  display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.result b { color: var(--ink); font-weight: 600; }
+.same { color: var(--muted); font-style: italic; }
+.bnotes { margin-top: 10px; font-size: 13px; }
+.bnotes summary { cursor: pointer; color: var(--ink-2); }
+.bnotes p { margin: 6px 0; white-space: pre-wrap; }
+.bnotes .d { color: var(--muted); font-size: 11px; margin-right: 6px; }
+
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 5px 10px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); white-space: normal; min-width: 150px; }
+thead th { color: var(--ink-2); font-size: 12px; font-weight: 600; vertical-align: bottom; }
+thead th small { display: block; font-weight: 400; color: var(--muted); }
+tr.sec td { background: var(--page); color: var(--ink-2); font-weight: 600; font-size: 12px; text-align: left; }
+tr.sec td:first-child { background: var(--page); }
+td.chg { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+td.new { background: var(--accent-soft); }
+td.gone { color: var(--muted); }
+td .sm { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+td.txt { text-align: right; white-space: normal; min-width: 120px; }
+.dotk { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--ink-2); margin-bottom: 8px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Recipe Versions</h1>
+  <p class="sub" id="subtitle"></p>
+  <nav class="fams" id="fams" aria-label="Recipe families"></nav>
+  <div id="view"></div>
+  <p class="note" id="gen"></p>
+</main>
+<script>
+const D = /*__DATA__*/null;
+const STAGES = ['Bittering', 'Late boil', 'Whirlpool', 'Dry hop'];
+const STAGE_VAR = { 'Bittering': '--s1', 'Late boil': '--s2', 'Whirlpool': '--s3', 'Dry hop': '--s4' };
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ok = v => v != null && v !== '' && !isNaN(v);
+const fmt = (v, d = 1) => ok(v) ? Number(v).toFixed(d) : '–';
+const dateNice = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }) : '–';
+const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const BY = Object.fromEntries(D.brews.map(b => [b.no, b]));
+const hopTiming = h => h.stage === 'Dry hop' ? (ok(h.day) ? 'day ' + h.day : '') :
+  (ok(h.time) ? h.time + ' min' : '') + (h.stage === 'Whirlpool' && ok(h.temp) ? ' @ ' + h.temp + '°C' : '');
+const sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
+function gapText(a, b) {
+  const days = Math.round((Date.parse(b.date) - Date.parse(a.date)) / 864e5);
+  if (days < 14) return `${days} days later`;
+  if (days < 63) return `${Math.round(days / 7)} weeks later`;
+  if (days < 730) return `${Math.round(days / 30.4)} months later`;
+  return `${(days / 365.25).toFixed(1)} years later`;
+}
+
+/* ------------------------------------------------------------ keyed views of a brew */
+function malts(b) {
+  const m = new Map();
+  b.ferms.forEach(f => {
+    const k = f.name.toLowerCase();
+    const o = m.get(k) || { name: f.name, group: f.group, kg: 0, pct: 0 };
+    o.kg += f.kg; o.pct += f.pct; m.set(k, o);
+  });
+  return m;
+}
+function hops(b) {
+  const m = new Map();
+  b.hops.forEach(h => {
+    const k = h.stage + '|' + h.name.toLowerCase();
+    const o = m.get(k) || { key: k, stage: h.stage, name: h.name, variety: h.variety, g: 0, times: [] };
+    o.g += h.g; const t = hopTiming(h); if (t && !o.times.includes(t)) o.times.push(t);
+    m.set(k, o);
+  });
+  return m;
+}
+const salts = b => new Map(b.miscs.filter(m => m.type === 'Water Agent').map(m => [m.name.toLowerCase(), m]));
+const stageGpl = (b, st) => sum(b.hops.filter(h => h.stage === st), h => h.g) / b.size;
+
+/* ------------------------------------------------------------ diff between two versions */
+function diff(A, B) {
+  const g = { Malt: [], Hops: [], Yeast: [], Process: [], Water: [], Targets: [] };
+  const L = (grp, tag, text) => g[grp].push({ tag, text });
+
+  // malt
+  const ma = malts(A), mb = malts(B);
+  const addedM = [...mb.keys()].filter(k => !ma.has(k)), droppedM = [...ma.keys()].filter(k => !mb.has(k));
+  const pairedM = new Set();
+  droppedM.forEach(k => {
+    const a = ma.get(k);
+    const k2 = addedM.find(x => !pairedM.has(x) && mb.get(x).group === a.group);
+    if (k2) { pairedM.add(k2); const b = mb.get(k2); L('Malt', 'swapped', `${esc(a.name)} ${fmt(a.pct, 0)}% → ${esc(b.name)} ${fmt(b.pct, 0)}%`); }
+    else L('Malt', 'dropped', `${esc(a.name)} <span class="muted">(was ${fmt(a.pct, 0)}%)</span>`);
+  });
+  addedM.filter(k => !pairedM.has(k)).forEach(k => { const b = mb.get(k); L('Malt', 'added', `${esc(b.name)} ${fmt(b.pct, 1)}% <span class="muted">(${fmt(b.kg, 2)} kg)</span>`); });
+  [...ma.keys()].filter(k => mb.has(k)).forEach(k => {
+    const a = ma.get(k), b = mb.get(k);
+    if (Math.abs(a.pct - b.pct) >= 1) L('Malt', 'changed', `${esc(a.name)} ${fmt(a.pct, 1)}% → ${fmt(b.pct, 1)}%`);
+  });
+  if (Math.abs(A.grainKg - B.grainKg) >= 0.2) L('Malt', 'changed', `Total grain ${fmt(A.grainKg, 2)} → ${fmt(B.grainKg, 2)} kg`);
+
+  // hops
+  const ha = hops(A), hb = hops(B);
+  STAGES.forEach(st => {
+    const ka = [...ha.values()].filter(h => h.stage === st), kb = [...hb.values()].filter(h => h.stage === st);
+    const added = kb.filter(h => !ha.has(h.key)), dropped = ka.filter(h => !hb.has(h.key));
+    const paired = new Set();
+    dropped.forEach(a => {
+      const b = added.find(x => !paired.has(x) && x.variety === a.variety);
+      if (b) { paired.add(b); L('Hops', 'swapped', `${st}: ${esc(a.name)} ${fmt(a.g, 0)} g → ${esc(b.name)} ${fmt(b.g, 0)} g`); }
+      else L('Hops', 'dropped', `${st}: ${esc(a.name)} <span class="muted">(was ${fmt(a.g, 0)} g)</span>`);
+    });
+    added.filter(b => !paired.has(b)).forEach(b => L('Hops', 'added', `${st}: ${esc(b.name)} ${fmt(b.g, 0)} g <span class="muted">${esc(b.times.join(', '))}</span>`));
+    ka.filter(a => hb.has(a.key)).forEach(a => {
+      const b = hb.get(a.key);
+      if (Math.abs(a.g - b.g) >= 1) L('Hops', 'changed', `${st}: ${esc(a.name)} ${fmt(a.g, 0)} → ${fmt(b.g, 0)} g`);
+      const ta = a.times.join(', '), tb = b.times.join(', ');
+      if (ta !== tb) L('Hops', 'timing', `${st}: ${esc(a.name)} ${esc(ta || '–')} → ${esc(tb || '–')}`);
+    });
+  });
+  const dA = stageGpl(A, 'Dry hop'), dB = stageGpl(B, 'Dry hop');
+  if (Math.abs(dA - dB) >= 0.3) L('Hops', 'rate', `Dry hop rate ${fmt(dA, 1)} → ${fmt(dB, 1)} g/L`);
+  const wA = stageGpl(A, 'Whirlpool') + stageGpl(A, 'Late boil'), wB = stageGpl(B, 'Whirlpool') + stageGpl(B, 'Late boil');
+  if (Math.abs(wA - wB) >= 0.3) L('Hops', 'rate', `Late boil + whirlpool rate ${fmt(wA, 1)} → ${fmt(wB, 1)} g/L`);
+
+  // yeast
+  const ya = A.yeasts.join(' + '), yb = B.yeasts.join(' + ');
+  if (ya !== yb) L('Yeast', 'swapped', `${esc(ya || '–')} → ${esc(yb || '–')}`);
+
+  // process
+  if (A.mashSteps !== B.mashSteps) L('Process', 'changed', `Mash ${esc(A.mashSteps || '–')} → ${esc(B.mashSteps || '–')}`);
+  if (A.fermSteps !== B.fermSteps) L('Process', 'changed', `Fermentation ${esc(A.fermSteps || '–')} → ${esc(B.fermSteps || '–')}`);
+  if (A.boil !== B.boil) L('Process', 'changed', `Boil ${fmt(A.boil, 0)} → ${fmt(B.boil, 0)} min`);
+  if (A.size !== B.size) L('Process', 'changed', `Batch size ${fmt(A.size)} → ${fmt(B.size)} L`);
+
+  // water
+  const sa = salts(A), sb = salts(B);
+  [...sa.keys()].filter(k => !sb.has(k)).forEach(k => L('Water', 'dropped', `${esc(sa.get(k).name)} <span class="muted">(was ${fmt(sa.get(k).amount)} ${esc(sa.get(k).unit)})</span>`));
+  [...sb.keys()].filter(k => !sa.has(k)).forEach(k => L('Water', 'added', `${esc(sb.get(k).name)} ${fmt(sb.get(k).amount)} ${esc(sb.get(k).unit)}`));
+  [...sa.keys()].filter(k => sb.has(k)).forEach(k => {
+    const a = sa.get(k), b = sb.get(k);
+    if (Math.abs((a.amount || 0) - (b.amount || 0)) >= 0.1) L('Water', 'changed', `${esc(a.name)} ${fmt(a.amount)} → ${fmt(b.amount)} ${esc(b.unit)}`);
+  });
+  if (A.water && B.water) {
+    if (ok(A.water['SO4:Cl']) && ok(B.water['SO4:Cl']) && Math.abs(A.water['SO4:Cl'] - B.water['SO4:Cl']) >= 0.3)
+      L('Water', 'changed', `SO4:Cl ratio ${fmt(A.water['SO4:Cl'], 2)} → ${fmt(B.water['SO4:Cl'], 2)}`);
+    if (A.water.source !== B.water.source) L('Water', 'changed', `Source water ${esc(A.water.source || '–')} → ${esc(B.water.source || '–')}`);
+  }
+
+  // targets
+  const T = (label, a, b, th, d, u = '') => { if (ok(a) && ok(b) && Math.abs(a - b) >= th) L('Targets', 'changed', `${label} ${fmt(a, d)}${u} → ${fmt(b, d)}${u}`); };
+  T('OG', A.ogPlan, B.ogPlan, 0.002, 3); T('FG', A.fgPlan, B.fgPlan, 0.002, 3); T('ABV', A.abvPlan, B.abvPlan, 0.2, 1, '%');
+  T('IBU', A.ibu, B.ibu, 3, 0); T('Colour', A.ebc, B.ebc, 2, 0, ' EBC');
+  return g;
+}
+
+/* ------------------------------------------------------------ rendering */
+function render() {
+  const fams = D.families;
+  if (!fams.length) { $('#view').innerHTML = '<p class="note">No recipe families found. Add some to families.txt.</p>'; return; }
+  const want = decodeURIComponent(location.hash.slice(1));
+  const fam = fams.find(f => slug(f.name) === want) || fams[0];
+  $('#fams').innerHTML = fams.map(f => `<button type="button" data-fam="${slug(f.name)}" aria-current="${f === fam}">${esc(f.name)}<span>${f.nos.length}</span></button>`).join('');
+  const V = fam.nos.map(n => BY[n]);
+  let h = timeline(V);
+  h += '<h2>What changed each time</h2><div class="stack">';
+  for (let i = 1; i < V.length; i++) h += stepCard(V[i - 1], V[i], i);
+  h += '</div>';
+  h += '<h2>Side by side</h2><div class="stack">' + numbersTable(V) + maltTable(V) + hopTable(V) + waterTable(V) + '</div>';
+  h += notesSection(V);
+  $('#view').innerHTML = h;
+}
+function timeline(V) {
+  return '<div class="timeline">' + V.map((b, i) => `<div class="card ver">
+    <div class="v">V${i + 1} · #${b.no}</div>
+    <div class="nm">${esc(b.name)}</div>
+    <div class="dt">${dateNice(b.date)} · ${esc(b.style)}</div>
+    <div class="kv"><span><b>${fmt(b.abv)}%</b>ABV</span><span><b>${fmt(b.ibu, 0)}</b>IBU</span><span><b>${fmt(sum(b.hops, x => x.g) / b.size, 1)}</b>hops g/L</span>${ok(b.rating) ? `<span><b>${b.rating}</b>rating</span>` : ''}</div>
+  </div>`).join('') + '</div>';
+}
+function stepCard(A, B, i) {
+  const g = diff(A, B);
+  const groups = Object.entries(g).filter(([, l]) => l.length);
+  const tagCls = t => t === 'added' ? 'add' : t === 'dropped' ? 'drop' : '';
+  const body = groups.length ? '<div class="groups">' + groups.map(([name, l]) =>
+    `<div class="group"><h4>${name}</h4><ul>${l.map(x => `<li><span class="tag ${tagCls(x.tag)}">${x.tag}</span><span>${x.text}</span></li>`).join('')}</ul></div>`).join('') + '</div>'
+    : '<p class="same">Same recipe brewed again: no changes to the malt bill, hops, yeast, process or water.</p>';
+  const R = (label, a, b, d, u = '') => `<span>${label} <b>${fmt(a, d)}${u} → ${fmt(b, d)}${u}</b></span>`;
+  const result = `<div class="result"><span class="muted">Measured:</span>${R('OG', A.og, B.og, 3)}${R('FG', A.fg, B.fg, 3)}${R('ABV', A.abv, B.abv, 1, '%')}${R('Efficiency', A.eff, B.eff, 0, '%')}${R('Attenuation', A.att, B.att, 0, '%')}</div>`;
+  const notes = B.notes.length ? `<details class="bnotes"><summary>Brew notes for #${B.no} (${B.notes.length})</summary>${B.notes.map(n => `<p><span class="d">${dateNice(n.date)} · ${esc(n.status || '')}</span>${esc(n.text)}</p>`).join('')}</details>` : '';
+  return `<div class="card"><div class="step-h"><span class="t">V${i} → V${i + 1}</span><span>#${A.no} ${esc(A.name)} → #${B.no} ${esc(B.name)}</span><span class="gap">${gapText(A, B)}</span></div>${body}${result}${notes}</div>`;
+}
+function head(V) {
+  return '<thead><tr><th></th>' + V.map((b, i) => `<th>V${i + 1} #${b.no}<small>${dateNice(b.date)}</small></th>`).join('') + '</tr></thead>';
+}
+function rowCells(vals, d, u = '', th = 0) {
+  return vals.map((v, i) => {
+    const prev = i ? vals[i - 1] : null;
+    let cls = '', arrow = '';
+    if (i && ok(v) && ok(prev) && Math.abs(v - prev) > th) { cls = 'chg'; arrow = v > prev ? ' ▲' : ' ▼'; }
+    return `<td class="${cls}">${fmt(v, d)}${ok(v) ? u : ''}${arrow}</td>`;
+  }).join('');
+}
+function textCells(vals) {
+  return vals.map((v, i) => `<td class="txt${i && v !== vals[i - 1] ? ' chg' : ''}">${esc(v || '–')}</td>`).join('');
+}
+function numbersTable(V) {
+  const r = (label, key, d, u, th) => `<tr><td>${label}</td>${rowCells(V.map(b => b[key]), d, u, th)}</tr>`;
+  const sec = t => `<tr class="sec"><td colspan="${V.length + 1}">${t}</td></tr>`;
+  return `<div class="card"><h3>Key numbers</h3><div class="legend"><span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>Different from the version before (▲ up, ▼ down)</span></div>
+  <div class="tbl-wrap"><table>${head(V)}<tbody>
+  ${sec('Recipe targets')}${r('OG', 'ogPlan', 3, '', 0.0009)}${r('FG', 'fgPlan', 3, '', 0.0009)}${r('ABV', 'abvPlan', 1, '%', 0.05)}${r('IBU', 'ibu', 0, '', 0.5)}${r('Colour (EBC)', 'ebc', 0, '', 0.5)}${r('Batch size', 'size', 1, ' L', 0.05)}
+  <tr><td>Hops total</td>${rowCells(V.map(b => sum(b.hops, x => x.g) / b.size), 1, ' g/L', 0.05)}</tr>
+  <tr><td>Dry hop</td>${rowCells(V.map(b => stageGpl(b, 'Dry hop')), 1, ' g/L', 0.05)}</tr>
+  <tr><td>Yeast</td>${textCells(V.map(b => b.yeasts.join(' + ')))}</tr>
+  <tr><td>Mash</td>${textCells(V.map(b => b.mashSteps))}</tr>
+  <tr><td>Fermentation</td>${textCells(V.map(b => b.fermSteps))}</tr>
+  <tr><td>Boil</td>${rowCells(V.map(b => b.boil), 0, ' min')}</tr>
+  ${sec('Measured')}${r('OG', 'og', 3, '', 0.0009)}${r('FG', 'fg', 3, '', 0.0009)}${r('ABV', 'abv', 1, '%', 0.05)}${r('Efficiency', 'eff', 1, '%', 0.5)}${r('Attenuation', 'att', 1, '%', 0.5)}
+  ${V.some(b => ok(b.rating)) ? `<tr><td>Rating</td>${rowCells(V.map(b => b.rating), 0)}</tr>` : ''}
+  </tbody></table></div></div>`;
+}
+function presenceCells(V, get, show, cmp) {
+  return V.map((b, i) => {
+    const o = get(b), p = i ? get(V[i - 1]) : undefined;
+    if (!o) return `<td class="gone">${i && p ? 'dropped' : ''}</td>`;
+    let cls = '';
+    if (i && !p) cls = 'new';
+    else if (i && p && cmp(o, p)) cls = 'chg';
+    return `<td class="${cls}">${show(o, p)}${i && !p ? '<span class="sm">new</span>' : ''}</td>`;
+  }).join('');
+}
+function maltTable(V) {
+  const maps = V.map(malts), keys = [];
+  maps.forEach(m => m.forEach((o, k) => { if (!keys.includes(k)) keys.push(k); }));
+  const maxPct = k => Math.max(...maps.map(m => (m.get(k) || {}).pct || 0));
+  keys.sort((a, b) => maxPct(b) - maxPct(a));
+  const rows = keys.map(k => {
+    const any = maps.find(m => m.get(k)).get(k);
+    return `<tr><td>${esc(any.name)}<span class="sm" style="display:block;font-size:11px;color:var(--muted)">${esc(any.group)}</span></td>` +
+      presenceCells(V, b => maps[V.indexOf(b)].get(k), (o, p) => `${fmt(o.pct, 1)}%${p && Math.abs(o.pct - p.pct) >= 1 ? (o.pct > p.pct ? ' ▲' : ' ▼') : ''}<span class="sm">${fmt(o.kg, 2)} kg</span>`, (o, p) => Math.abs(o.pct - p.pct) >= 1) + '</tr>';
+  }).join('');
+  return `<div class="card"><h3>Malt bill (% of grist)</h3><div class="tbl-wrap"><table>${head(V)}<tbody>${rows}
+    <tr><td><b>Total grain</b></td>${rowCells(V.map(b => b.grainKg), 2, ' kg', 0.1)}</tr></tbody></table></div></div>`;
+}
+function hopTable(V) {
+  const maps = V.map(hops);
+  let body = '';
+  STAGES.forEach(st => {
+    const keys = [];
+    maps.forEach(m => m.forEach((o, k) => { if (o.stage === st && !keys.includes(k)) keys.push(k); }));
+    if (!keys.length) return;
+    keys.sort((a, b) => Math.max(...maps.map(m => (m.get(b) || {}).g || 0)) - Math.max(...maps.map(m => (m.get(a) || {}).g || 0)));
+    body += `<tr class="sec"><td colspan="${V.length + 1}"><i class="dotk" style="background:var(${STAGE_VAR[st]})"></i>${st}</td></tr>`;
+    body += keys.map(k => {
+      const any = maps.find(m => m.get(k)).get(k);
+      return `<tr><td>${esc(any.name)}</td>` + presenceCells(V, b => maps[V.indexOf(b)].get(k),
+        (o, p) => `${fmt(o.g, 0)} g${p && Math.abs(o.g - p.g) >= 1 ? (o.g > p.g ? ' ▲' : ' ▼') : ''}<span class="sm">${esc(o.times.join(', '))}</span>`,
+        (o, p) => Math.abs(o.g - p.g) >= 1 || o.times.join() !== p.times.join()) + '</tr>';
+    }).join('');
+    body += `<tr><td class="muted" style="color:var(--muted)">${st} total</td>${rowCells(V.map(b => stageGpl(b, st)), 1, ' g/L', 0.05)}</tr>`;
+  });
+  return `<div class="card"><h3>Hop schedule (grams, with timing)</h3><div class="tbl-wrap"><table>${head(V)}<tbody>${body}</tbody></table></div>
+    <p class="note">Cryo and lupulin products are listed separately from pellets, so a switch to cryo shows as a change.</p></div>`;
+}
+function waterTable(V) {
+  if (!V.some(b => b.water || b.miscs.length)) return '';
+  const sm = V.map(salts), keys = [];
+  sm.forEach(m => m.forEach((o, k) => { if (!keys.includes(k)) keys.push(k); }));
+  const saltRows = keys.map(k => {
+    const any = sm.find(m => m.get(k)).get(k);
+    return `<tr><td>${esc(any.name)}</td>` + presenceCells(V, b => sm[V.indexOf(b)].get(k), o => `${fmt(o.amount)} ${esc(o.unit)}`, (o, p) => Math.abs((o.amount || 0) - (p.amount || 0)) >= 0.1) + '</tr>';
+  }).join('');
+  const ion = (k, d = 0, th = 4) => `<tr><td>${k}</td>${rowCells(V.map(b => b.water ? b.water[k] : null), d, '', th)}</tr>`;
+  const sec = t => `<tr class="sec"><td colspan="${V.length + 1}">${t}</td></tr>`;
+  return `<div class="card"><h3>Water</h3><div class="tbl-wrap"><table>${head(V)}<tbody>
+    ${saltRows ? sec('Salts and acid') + saltRows : ''}
+    ${sec('Resulting profile (ppm)')}${ion('Ca')}${ion('Mg')}${ion('Na')}${ion('Cl')}${ion('SO4')}${ion('HCO3')}${ion('SO4:Cl', 2, 0.1)}
+    <tr><td>Source water</td>${textCells(V.map(b => b.water && b.water.source))}</tr>
+  </tbody></table></div></div>`;
+}
+function notesSection(V) {
+  const any = V.some(b => b.notes.length || b.recipeNotes);
+  if (!any) return '';
+  return '<h2>Notes</h2><div class="stack">' + V.map((b, i) => (b.notes.length || b.recipeNotes) ? `<div class="card"><h3>V${i + 1} · #${b.no} ${esc(b.name)}</h3>
+    ${b.recipeNotes ? `<div class="bnotes"><p><span class="d">Recipe notes</span>${esc(b.recipeNotes)}</p></div>` : ''}
+    ${b.notes.map(n => `<div class="bnotes"><p><span class="d">${dateNice(n.date)} · ${esc(n.status || '')}</span>${esc(n.text)}</p></div>`).join('')}
+  </div>` : '').join('') + '</div>';
+}
+
+$('#fams').addEventListener('click', e => {
+  const b = e.target.closest('[data-fam]');
+  if (b) { location.hash = b.dataset.fam; }
+});
+addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
+$('#subtitle').innerHTML = `How each recipe changed from one brew to the next. ${D.families.length} recipe families.`;
+$('#gen').textContent = `Generated ${D.generated} from the Brewfather API. Families are set on the Admin page (families.txt).`;
+render();
+</script>
+</body>
+</html>

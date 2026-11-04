@@ -1,0 +1,10 @@
+# secrets and your own data: never commit
+.env
+data/
+output/
+Next Brew/
+# build output and local copies
+dist/
+HopDatabase/
+__pycache__/
+*.pyc

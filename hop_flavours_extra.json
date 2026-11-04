@@ -1,0 +1,12 @@
+{
+  "_about": "Hop aroma scores (0-5) for hops that HopDatabase is missing or has no aroma scores for. These are rough estimates from published descriptions, not supplier data: edit them freely. Aliases map a name used in Brewfather to a HopDatabase name.",
+  "aliases": {
+    "4337": "Nectaron",
+    "HORT 4337": "Nectaron"
+  },
+  "hops": {
+    "Pacific Jade": {"Citrus": 2, "Resin/Pine": 1, "Spice": 3, "Herbal": 2, "Grassy": 1, "Floral": 1, "Berry": 0, "Stone Fruit": 0, "Tropical Fruit": 0, "notes": ["citrus", "black pepper", "herbal"]},
+    "Ahtanum": {"Citrus": 3, "Resin/Pine": 2, "Spice": 1, "Herbal": 2, "Grassy": 2, "Floral": 3, "Berry": 0, "Stone Fruit": 0, "Tropical Fruit": 0, "notes": ["grapefruit", "floral", "earthy", "pine"]},
+    "Harlequin": {"Citrus": 1, "Resin/Pine": 0, "Spice": 0, "Herbal": 0, "Grassy": 0, "Floral": 1, "Berry": 1, "Stone Fruit": 4, "Tropical Fruit": 4, "notes": ["passion fruit", "peach", "pineapple"]}
+  }
+}

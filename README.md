@@ -19,7 +19,7 @@ Brewfather API key, and your data stays there.
 
 It then downloads your brews and builds the pages. Keep the server window open while you use it.
 
-To run it on a public web server, see [docs/DEPLOY.md](docs/DEPLOY.md).
+To run it on a public web server, including a Plesk VPS alongside other sites, see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Pages
 

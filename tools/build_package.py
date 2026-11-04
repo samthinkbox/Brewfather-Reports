@@ -26,7 +26,7 @@ FILES = [
     "config/hop_flavours_extra.json",
     # data, docs and launchers
     "hopdata/hops.json", "hopdata/LICENSE-HopDatabase.txt",
-    "README.md", "TERMS.md", "LICENSE", "docs/DEPLOY.md", "start.bat", "start.sh",
+    "README.md", "TERMS.md", "LICENSE", "docs/DEPLOY.md", "docs/brew-reports.service", "start.bat", "start.sh",
 ]
 STARTERS = {".gitignore": ".env\ndata/\noutput/\n__pycache__/\n"}
 NEVER = (".env", "admin.json", "batches.json", "settings.json", "next_brew.py", "exclude.txt", "families.txt")

@@ -23,6 +23,7 @@ EXTRA = paths.config("hop_flavours_extra.json")
 
 AROMAS = ["Citrus", "Resin/Pine", "Spice", "Herbal", "Grassy", "Floral", "Berry", "Stone Fruit", "Tropical Fruit"]
 STAGE_WEIGHT = {"Whirlpool": 1.0, "Dry hop": 1.0, "Late boil": 0.5}
+MAX_PARTS = 6  # hops shown in their own colour in the makeup chart; the rest become "Other"
 
 
 def _key(name):
@@ -83,7 +84,25 @@ def profile(hops, db):
                  "estimate": bool((lookup(db, v) or {}).get("estimate")), "known": v in weights}
                 for v, g in sorted(grams.items(), key=lambda x: -x[1])]
     covered = total / (total + sum(missing.values())) * 100
-    return {"aromas": aromas, "contrib": contrib, "hops": hop_list, "covered": round(covered),
+    # Each hop's share of every aroma, biggest hop first; the parts add up to `aromas`.
+    # Past MAX_PARTS hops the rest are grouped as "Other" so the chart colours stay distinct.
+    ranked = sorted(weights.items(), key=lambda x: -x[1])
+    parts = []
+    for i, (v, w) in enumerate(ranked):
+        a = {c: w * lookup(db, v)["aromas"][c] / total for c in AROMAS}
+        if i < MAX_PARTS or len(ranked) == MAX_PARTS + 1:
+            parts.append({"variety": v, "share": round(w / total * 100), "g": round(grams.get(v, 0)),
+                          "estimate": bool(lookup(db, v).get("estimate")), "aromas": {c: round(x, 3) for c, x in a.items()}})
+        else:
+            if parts[-1]["variety"] != "Other":
+                parts.append({"variety": "Other", "share": 0, "g": 0, "estimate": False, "others": [],
+                              "aromas": {c: 0.0 for c in AROMAS}})
+            o = parts[-1]
+            o["share"] += round(w / total * 100)
+            o["g"] += round(grams.get(v, 0))
+            o["others"].append(v)
+            o["aromas"] = {c: round(o["aromas"][c] + a[c], 3) for c in AROMAS}
+    return {"aromas": aromas, "contrib": contrib, "hops": hop_list, "parts": parts, "covered": round(covered),
             "missing": sorted(missing), "top": sorted(AROMAS, key=lambda c: -aromas[c])[:3]}
 
 

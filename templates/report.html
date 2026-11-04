@@ -39,7 +39,7 @@ h3 { font-size: 14px; margin: 0 0 8px; color: var(--ink-2); font-weight: 600; }
 .note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
 section { margin-top: 28px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .stack > * + * { margin-top: 16px; }
 @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
 
@@ -879,9 +879,9 @@ function flavourBlock(b) {
   const p = b.flavour;
   if (!p) return `<div class="flavrow"><div><h3>Hop flavour</h3><p class="note">No late, whirlpool or dry hops with flavour data in this brew.</p></div></div>`;
   const miss = p.missing.length ? ` No data for ${esc(p.missing.join(', '))} (add it to hop_flavours_extra.json).` : '';
-  return `<div class="flavrow"><div><h3>Hop flavour</h3>${HopRadar.inline(p)}</div>` +
-    `<div><h3>Strongest: ${p.top.map(esc).join(', ')}</h3>${HopRadar.hopList(p)}` +
-    `<p class="note">Aroma scores 0 to 5 from HopDatabase (supplier data), averaged by grams of late boil (half weight), whirlpool and dry hops. Bittering hops are left out.${miss}</p>` +
+  return `<div class="flavrow"><div><h3>Hop flavour: ${p.top.map(esc).join(', ')}</h3>${HopRadar.inline(p)}</div>` +
+    `<div><h3>What each hop adds</h3>${HopRadar.makeup(p)}` +
+    `<p class="note">Aroma scores 0 to 5 from HopDatabase (supplier data), averaged by grams of late boil (half weight), whirlpool and dry hops. Each bar is the total for that aroma, split by how much each hop adds. Bittering hops are left out.${miss}</p>` +
     `<p style="margin:10px 0 0"><button type="button" data-png="${esc(b.id)}">Save PNG for Brewfather</button></p></div></div>`;
 }
 

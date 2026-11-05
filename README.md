@@ -27,7 +27,9 @@ Every page has the same header with links to the others.
 
 - **Brew History** (`report.html`)
   - **Hops:** amounts by stage (bittering, late boil, whirlpool, dry hop), and the flavour/aroma hop
-    pairs, trios and full line-ups you use.
+    pairs, trios and full line-ups you use. Cryo, lupulin and LupuMax hops are double strength, so hop
+    amounts, every g/L rate and the flavour charts count them as twice their weight in pellets. Recipe
+    listings still show the grams you weighed, with a ×2 mark, and IBU comes from Brewfather unchanged.
   - **Bittering hops:** a table of usage, alpha acid, IBU and timing.
   - **Malt bill:** the make-up of each grist.
   - **Water:** your tap water profiles, final Ca/Mg/Cl/SO4 per brew, the SO4:Cl ratio (e.g. 5.5:1), planned

@@ -58,16 +58,18 @@ def lookup(db, variety):
 
 
 def profile(hops, db):
-    """hops: dicts with variety, stage and g (as in build_report). Returns the weighted profile or None."""
+    """hops: dicts with variety, stage, g and (optionally) ge = pellet-equivalent grams, as in build_report.
+    Weights use ge, so 1 g of cryo / lupulin counts like 2 g of pellets. Returns the profile or None."""
     weights, missing = {}, {}
     for h in hops:
         w = STAGE_WEIGHT.get(h.get("stage"))
-        if not w or not h.get("g"):
+        g = h.get("ge", h.get("g")) or 0
+        if not w or not g:
             continue
         if lookup(db, h["variety"]):
-            weights[h["variety"]] = weights.get(h["variety"], 0) + h["g"] * w
+            weights[h["variety"]] = weights.get(h["variety"], 0) + g * w
         else:
-            missing[h["variety"]] = missing.get(h["variety"], 0) + h["g"] * w
+            missing[h["variety"]] = missing.get(h["variety"], 0) + g * w
     total = sum(weights.values())
     if not total:
         return None

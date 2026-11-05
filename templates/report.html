@@ -169,7 +169,7 @@ svg text { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; fill: va
         </div>
         <div class="legend" id="stageLegend"></div>
         <div class="hbars" id="hopBars"></div>
-        <p class="note">Cryo, lupulin and extract forms are counted under their base variety. Click a hop to filter the whole report to brews that used it.
+        <p class="note">Cryo, lupulin and extract forms are counted under their base variety. Cryo, lupulin and LupuMax are double strength, so they count as twice their weight in pellets here and in every g/L figure (1 g = 2 g of pellets). Click a hop to filter the whole report to brews that used it.
           <button type="button" id="hopMore" style="font-size:12px;padding:2px 8px;margin-left:6px"></button></p>
       </div>
       <div class="card">
@@ -310,6 +310,8 @@ const ts = b => Date.parse(b.date);
 const dateNice = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }) : '–';
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const tipAttr = html => ` data-tip="${esc(html)}"`;
+// Cryo / lupulin / LupuMax are double strength: show the weighed grams with the pellet equivalent beside them.
+const pellet = h => h.strength > 1 || (h.ge && h.ge > h.g + 0.5) ? ` <span class="muted" style="white-space:nowrap">(≈ ${fmt(h.ge, 0)} g pellets)</span>` : '';
 const tRow = (k, v) => `<div class="t-row"><span>${k}</span><span>${v}</span></div>`;
 const hopTiming = h => h.stage === 'Dry hop' ? (ok(h.day) ? 'day ' + h.day : '') :
   (ok(h.time) ? h.time + ' min' : '') + (h.stage === 'Whirlpool' && ok(h.temp) ? ' @ ' + h.temp + '°C' : '');
@@ -389,7 +391,7 @@ function renderTiles(B) {
     ['Litres brewed', fmt(litres, 0), B.length ? `${fmt(litres / B.length, 1)} L per brew` : ''],
     ['Average ABV', B.length ? fmt(mean(abvs)) + '%' : '–', abvs.length ? `${fmt(Math.min(...abvs))}% to ${fmt(Math.max(...abvs))}%` : ''],
     ['Brewhouse efficiency', B.length ? fmt(mean(B.map(b => b.eff)), 0) + '%' : '–', B.length ? `planned ${fmt(mean(B.map(b => b.effPlan)), 0)}%` : ''],
-    ['Hops used', fmt(hopG / 1000, 1) + ' kg', B.length ? `${fmt(mean(B.map(b => b.hops.reduce((t, h) => t + h.g, 0) / b.size)), 1)} g/L per brew` : ''],
+    ['Hops used', fmt(hopG / 1000, 1) + ' kg', B.length ? `${fmt(mean(B.map(b => b.hops.reduce((t, h) => t + h.ge, 0) / b.size)), 1)} g/L per brew` : ''],
     ['Most-used hop', top ? top[0] : '–', top ? `in ${top[1]} of ${B.length} brews` : ''],
   ];
   $('#tiles').innerHTML = tiles.map(([k, v, s]) => `<div class="card tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="s">${esc(s)}</div></div>`).join('');
@@ -403,10 +405,10 @@ function hopAgg(B) {
     b.hops.forEach(h => {
       let o = m.get(h.variety);
       if (!o) { o = { v: h.variety, g: 0, st: {}, brews: new Set(), gplSum: 0, last: '' }; m.set(h.variety, o); }
-      o.g += h.g;
-      o.st[h.stage] = (o.st[h.stage] || 0) + h.g;
+      o.g += h.ge;
+      o.st[h.stage] = (o.st[h.stage] || 0) + h.ge;
       o.brews.add(b.no);
-      per[h.variety] = (per[h.variety] || 0) + h.g / b.size;
+      per[h.variety] = (per[h.variety] || 0) + h.ge / b.size;
       if (b.date > o.last) o.last = b.date;
     });
     Object.entries(per).forEach(([v, x]) => m.get(v).gplSum += x);
@@ -455,7 +457,7 @@ function renderCombos(B) {
       const k = set.join('\u0000');
       const o = m.get(k) || { set, brews: [], gpl: [], last: '' };
       o.brews.push(b);
-      o.gpl.push(b.hops.filter(h => AROMA.has(h.stage) && set.includes(h.variety)).reduce((s, h) => s + h.g, 0) / b.size);
+      o.gpl.push(b.hops.filter(h => AROMA.has(h.stage) && set.includes(h.variety)).reduce((s, h) => s + h.ge, 0) / b.size);
       if (b.date > o.last) o.last = b.date;
       m.set(k, o);
     });
@@ -464,7 +466,7 @@ function renderCombos(B) {
   const total = rows.length;
   if (mode !== 'all') rows = rows.slice(0, 30);
   const brewChips = list => list.map(b => `<span class="chip"${tipAttr(`<b>#${b.no} ${esc(b.name)}</b>` + tRow('Brewed', dateNice(b.date)) + tRow('ABV', fmt(b.abv) + '%') +
-    b.hops.filter(h => AROMA.has(h.stage)).map(h => tRow(esc(h.name) + ' <span class="muted">' + esc(h.stage.toLowerCase()) + '</span>', fmt(h.g, 0) + ' g')).join(''))}>#${b.no}</span>`).join('');
+    b.hops.filter(h => AROMA.has(h.stage)).map(h => tRow(esc(h.name) + ' <span class="muted">' + esc(h.stage.toLowerCase()) + '</span>', fmt(h.g, 0) + ' g' + pellet(h))).join(''))}>#${b.no}</span>`).join('');
   const hopChip = v => `<span class="chip btn" data-hop="${esc(v)}">${esc(v)}</span>`;
   const label = mode === '2' ? 'Pair' : mode === '3' ? 'Trio' : 'Flavour & aroma hops';
   $('#combos').innerHTML = rows.length ? `<thead><tr><th>${label}</th><th class="n">Brews</th><th class="n">Avg g/L</th><th>Brew #</th><th class="n">Last brewed</th></tr></thead><tbody>` +
@@ -480,7 +482,7 @@ function renderHeat(B) {
   const years = [...new Set(B.map(year))].sort();
   if (!agg.length) { $('#heat').innerHTML = '<tbody><tr><td class="empty">No brews match the filters.</td></tr></tbody>'; return; }
   const cell = {};
-  B.forEach(b => b.hops.forEach(h => { const k = h.variety + '|' + year(b); cell[k] = (cell[k] || 0) + h.g; }));
+  B.forEach(b => b.hops.forEach(h => { const k = h.variety + '|' + year(b); cell[k] = (cell[k] || 0) + h.ge; }));
   const max = Math.max(...agg.flatMap(o => years.map(y => cell[o.v + '|' + y] || 0)));
   $('#heat').innerHTML = `<thead><tr><th></th>${years.map(y => `<th>${y}</th>`).join('')}</tr></thead><tbody>` +
     agg.map(o => `<tr><td class="lab">${esc(o.v)}</td>` + years.map(y => {
@@ -551,9 +553,9 @@ function renderRate(B) {
   $('#rateLegend').innerHTML = `<span><i class="dot" style="background:var(--s4)"></i>Dry hop</span><span><i class="dot" style="background:var(--s1)"></i>Hot side (boil + whirlpool)</span>`;
   const dry = [], hot = [];
   B.forEach(b => {
-    const d = b.hops.filter(h => h.stage === 'Dry hop').reduce((s, h) => s + h.g, 0) / b.size;
-    const k = b.hops.filter(h => h.stage !== 'Dry hop').reduce((s, h) => s + h.g, 0) / b.size;
-    const list = st => b.hops.filter(h => st(h.stage)).map(h => tRow(esc(h.name) + ' <span class="muted">' + esc(hopTiming(h)) + '</span>', fmt(h.g, 0) + ' g')).join('');
+    const d = b.hops.filter(h => h.stage === 'Dry hop').reduce((s, h) => s + h.ge, 0) / b.size;
+    const k = b.hops.filter(h => h.stage !== 'Dry hop').reduce((s, h) => s + h.ge, 0) / b.size;
+    const list = st => b.hops.filter(h => st(h.stage)).map(h => tRow(esc(h.name) + ' <span class="muted">' + esc(hopTiming(h)) + '</span>', fmt(h.g, 0) + ' g' + pellet(h))).join('');
     if (d) dry.push({ x: ts(b), y: d, tip: brewTip(b, tRow('<b>Dry hop</b>', '<b>' + fmt(d, 1) + ' g/L</b>') + list(s => s === 'Dry hop')) });
     if (k) hot.push({ x: ts(b), y: k, tip: brewTip(b, tRow('<b>Hot side</b>', '<b>' + fmt(k, 1) + ' g/L</b>') + list(s => s !== 'Dry hop')) });
   });
@@ -650,12 +652,12 @@ function renderBitter(B) {
     const per = {};
     bit.forEach(h => {
       const o = m.get(h.variety) || { v: h.variety, brews: new Map(), g: 0, gpl: 0, alpha: [], ibu: 0, when: {}, forms: new Set(), last: '' };
-      o.g += h.g; o.forms.add(h.form);
+      o.g += h.ge; o.forms.add(h.form);
       if (ok(h.alpha)) o.alpha.push(h.alpha);
       if (ok(h.ibu)) { o.ibu += h.ibu; bitIbu += h.ibu; }
       const w = h.use === 'First Wort' ? 'FWH' : (ok(h.time) ? h.time + ' min' : '?');
       o.when[w] = (o.when[w] || 0) + 1;
-      per[h.variety] = (per[h.variety] || 0) + h.g;
+      per[h.variety] = (per[h.variety] || 0) + h.ge;
       o.brews.set(b.no, b);
       if (b.date > o.last) o.last = b.date;
       m.set(h.variety, o);
@@ -672,7 +674,7 @@ function renderBitter(B) {
       const when = Object.entries(o.when).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k)}${n > 1 ? ' <span class="muted">×' + n + '</span>' : ''}`).join(', ');
       const tip = `<b>${esc(o.v)} for bittering</b>` + list.map(b => {
         const g = b.hops.filter(h => h.variety === o.v && h.stage === 'Bittering');
-        return tRow(`#${b.no} ${esc(b.name)}`, g.map(h => fmt(h.g, 0) + ' g' + (h.use === 'First Wort' ? ' FWH' : ' @' + h.time)).join(' + '));
+        return tRow(`#${b.no} ${esc(b.name)}`, g.map(h => fmt(h.g, 0) + ' g' + pellet(h) + (h.use === 'First Wort' ? ' FWH' : ' @' + h.time)).join(' + '));
       }).join('');
       return `<tr${tipAttr(tip)}><td><span class="chip btn" data-hop="${esc(o.v)}">${esc(o.v)}</span>${[...o.forms].filter(f => f !== 'Pellet').map(f => ` <span class="muted" style="font-size:11px">${esc(f)}</span>`).join('')}</td>` +
         `<td style="white-space:nowrap"><span class="minibar" style="width:${Math.round(o.n / maxN * 70) + 4}px"></span>${o.n}</td>` +
@@ -834,7 +836,7 @@ const COLS = [
   ['abv', 'ABV %', 'n', 1], ['ibu', 'IBU', 'n', 0], ['ebc', 'EBC', 'n', 0], ['eff', 'Eff %', 'n', 0], ['hopgpl', 'Hops g/L', 'n', 1], ['rating', 'Rating', 'n', 0],
 ];
 function renderLog(B) {
-  const rows = B.map(b => ({ ...b, hopgpl: b.hops.reduce((s, h) => s + h.g, 0) / b.size }));
+  const rows = B.map(b => ({ ...b, hopgpl: b.hops.reduce((s, h) => s + h.ge, 0) / b.size }));
   const { k, dir } = S.sort;
   rows.sort((a, b) => {
     const x = a[k], y = b[k];
@@ -864,7 +866,7 @@ function detail(b) {
     `<tr><td><b>Total</b></td><td class="n"><b>${fmt(b.grainKg, 2)}</b></td><td></td></tr></tbody></table>`;
   const order = h => STAGES.indexOf(h.stage) * 1000 - (h.stage === 'Dry hop' ? -(h.day || 0) : (h.time || 0));
   const hops = `<table><thead><tr><th>Stage</th><th>Hop</th><th class="n">g</th><th class="n">g/L</th><th>When</th></tr></thead><tbody>` +
-    [...b.hops].sort((x, y) => order(x) - order(y)).map(h => `<tr><td><i class="dotk" style="background:var(${STAGE_VAR[h.stage] || '--muted'})"></i>${esc(h.stage)}</td><td>${esc(h.name)}${ok(h.alpha) ? ` <span class="muted">${h.alpha}%</span>` : ''}</td><td class="n">${fmt(h.g, 0)}</td><td class="n">${fmt(h.gpl, 2)}</td><td class="muted">${esc(hopTiming(h))}</td></tr>`).join('') + '</tbody></table>';
+    [...b.hops].sort((x, y) => order(x) - order(y)).map(h => `<tr><td><i class="dotk" style="background:var(${STAGE_VAR[h.stage] || '--muted'})"></i>${esc(h.stage)}</td><td>${esc(h.name)}${ok(h.alpha) ? ` <span class="muted">${h.alpha}%</span>` : ''}</td><td class="n">${fmt(h.g, 0)}${pellet(h)}</td><td class="n">${fmt(h.gpl, 2)}</td><td class="muted">${esc(hopTiming(h))}</td></tr>`).join('') + '</tbody></table>';
   const pv = (label, a, p, d, u = '') => `<tr><td>${label}</td><td class="n">${fmt(a, d)}${u}</td><td class="n muted">${fmt(p, d)}${u}</td></tr>`;
   const nums = `<table><thead><tr><th></th><th class="n">Actual</th><th class="n">Plan</th></tr></thead><tbody>` +
     pv('OG', b.og, b.ogPlan, 3) + pv('FG', b.fg, b.fgPlan, 3) + pv('ABV', b.abv, b.abvPlan, 1, '%') + pv('Efficiency', b.eff, b.effPlan, 1, '%') +

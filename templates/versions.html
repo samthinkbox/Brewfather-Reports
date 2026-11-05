@@ -130,6 +130,8 @@ const BY = Object.fromEntries(D.brews.map(b => [b.no, b]));
 const hopTiming = h => h.stage === 'Dry hop' ? (ok(h.day) ? 'day ' + h.day : '') :
   (ok(h.time) ? h.time + ' min' : '') + (h.stage === 'Whirlpool' && ok(h.temp) ? ' @ ' + h.temp + '°C' : '');
 const sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
+// Cryo / lupulin / LupuMax are double strength: show the weighed grams with the pellet equivalent beside them.
+const pellet = h => h.strength > 1 || (h.ge && h.ge > h.g + 0.5) ? ` <span class="muted" style="white-space:nowrap">(≈ ${fmt(h.ge, 0)} g pellets)</span>` : '';
 function gapText(a, b) {
   const days = Math.round((Date.parse(b.date) - Date.parse(a.date)) / 864e5);
   if (days < 14) return `${days} days later`;
@@ -152,14 +154,14 @@ function hops(b) {
   const m = new Map();
   b.hops.forEach(h => {
     const k = h.stage + '|' + h.name.toLowerCase();
-    const o = m.get(k) || { key: k, stage: h.stage, name: h.name, variety: h.variety, g: 0, times: [] };
-    o.g += h.g; const t = hopTiming(h); if (t && !o.times.includes(t)) o.times.push(t);
+    const o = m.get(k) || { key: k, stage: h.stage, name: h.name, variety: h.variety, g: 0, ge: 0, times: [] };
+    o.g += h.g; o.ge += h.ge; const t = hopTiming(h); if (t && !o.times.includes(t)) o.times.push(t);
     m.set(k, o);
   });
   return m;
 }
 const salts = b => new Map(b.miscs.filter(m => m.type === 'Water Agent').map(m => [m.name.toLowerCase(), m]));
-const stageGpl = (b, st) => sum(b.hops.filter(h => h.stage === st), h => h.g) / b.size;
+const stageGpl = (b, st) => sum(b.hops.filter(h => h.stage === st), h => h.ge) / b.size;  // pellet-equivalent
 
 /* ------------------------------------------------------------ diff between two versions */
 function diff(A, B) {
@@ -191,13 +193,13 @@ function diff(A, B) {
     const paired = new Set();
     dropped.forEach(a => {
       const b = added.find(x => !paired.has(x) && x.variety === a.variety);
-      if (b) { paired.add(b); L('Hops', 'swapped', `${st}: ${esc(a.name)} ${fmt(a.g, 0)} g → ${esc(b.name)} ${fmt(b.g, 0)} g`); }
-      else L('Hops', 'dropped', `${st}: ${esc(a.name)} <span class="muted">(was ${fmt(a.g, 0)} g)</span>`);
+      if (b) { paired.add(b); L('Hops', 'swapped', `${st}: ${esc(a.name)} ${fmt(a.g, 0)} g${pellet(a)} → ${esc(b.name)} ${fmt(b.g, 0)} g${pellet(b)}`); }
+      else L('Hops', 'dropped', `${st}: ${esc(a.name)} <span class="muted">(was ${fmt(a.g, 0)} g)</span>${pellet(a)}`);
     });
-    added.filter(b => !paired.has(b)).forEach(b => L('Hops', 'added', `${st}: ${esc(b.name)} ${fmt(b.g, 0)} g <span class="muted">${esc(b.times.join(', '))}</span>`));
+    added.filter(b => !paired.has(b)).forEach(b => L('Hops', 'added', `${st}: ${esc(b.name)} ${fmt(b.g, 0)} g${pellet(b)} <span class="muted">${esc(b.times.join(', '))}</span>`));
     ka.filter(a => hb.has(a.key)).forEach(a => {
       const b = hb.get(a.key);
-      if (Math.abs(a.g - b.g) >= 1) L('Hops', 'changed', `${st}: ${esc(a.name)} ${fmt(a.g, 0)} → ${fmt(b.g, 0)} g`);
+      if (Math.abs(a.g - b.g) >= 1) L('Hops', 'changed', `${st}: ${esc(a.name)} ${fmt(a.g, 0)} → ${fmt(b.g, 0)} g${pellet(b)}`);
       const ta = a.times.join(', '), tb = b.times.join(', ');
       if (ta !== tb) L('Hops', 'timing', `${st}: ${esc(a.name)} ${esc(ta || '–')} → ${esc(tb || '–')}`);
     });
@@ -260,7 +262,7 @@ function timeline(V) {
     <div class="v">V${i + 1} · #${b.no}</div>
     <div class="nm">${esc(b.name)}</div>
     <div class="dt">${dateNice(b.date)} · ${esc(b.style)}</div>
-    <div class="kv"><span><b>${fmt(b.abv)}%</b>ABV</span><span><b>${fmt(b.ibu, 0)}</b>IBU</span><span><b>${fmt(sum(b.hops, x => x.g) / b.size, 1)}</b>hops g/L</span>${ok(b.rating) ? `<span><b>${b.rating}</b>rating</span>` : ''}</div>
+    <div class="kv"><span><b>${fmt(b.abv)}%</b>ABV</span><span><b>${fmt(b.ibu, 0)}</b>IBU</span><span><b>${fmt(sum(b.hops, x => x.ge) / b.size, 1)}</b>hops g/L</span>${ok(b.rating) ? `<span><b>${b.rating}</b>rating</span>` : ''}</div>
   </div>`).join('') + '</div>';
 }
 /* Plain ingredient list per version (malt and hops only), side by side. */
@@ -273,7 +275,7 @@ function ingredientLists(V) {
         .sort((x, y) => st === 'Dry hop' ? (x.day || 0) - (y.day || 0) : (y.time || 0) - (x.time || 0));
       if (!list.length) return '';
       return `<li class="st"><i class="dotk" style="background:var(${STAGE_VAR[st]})"></i>${st}</li>` +
-        list.map(x => `<li><span class="q">${fmt(x.g, 0)} g</span><span>${esc(x.name)}${hopTiming(x) ? ` <span class="muted">${esc(hopTiming(x))}</span>` : ''}</span></li>`).join('');
+        list.map(x => `<li><span class="q">${fmt(x.g, 0)} g</span><span>${esc(x.name)}${hopTiming(x) ? ` <span class="muted">${esc(hopTiming(x))}</span>` : ''}${pellet(x)}</span></li>`).join('');
     }).join('');
     return `<div class="card ingr"><div class="v">V${i + 1} · #${b.no}</div><div class="nm">${esc(b.name)}</div><div class="dt">${dateNice(b.date)}</div>
       <h4>Malt <span class="muted">${fmt(b.grainKg, 2)} kg</span></h4><ul>${malt || '<li class="muted">None</li>'}</ul>
@@ -313,7 +315,7 @@ function numbersTable(V) {
   return `<div class="card"><h3>Key numbers</h3><div class="legend"><span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>Different from the version before (▲ up, ▼ down)</span></div>
   <div class="tbl-wrap"><table>${head(V)}<tbody>
   ${sec('Recipe targets')}${r('OG', 'ogPlan', 3, '', 0.0009)}${r('FG', 'fgPlan', 3, '', 0.0009)}${r('ABV', 'abvPlan', 1, '%', 0.05)}${r('IBU', 'ibu', 0, '', 0.5)}${r('Colour (EBC)', 'ebc', 0, '', 0.5)}${r('Batch size', 'size', 1, ' L', 0.05)}
-  <tr><td>Hops total</td>${rowCells(V.map(b => sum(b.hops, x => x.g) / b.size), 1, ' g/L', 0.05)}</tr>
+  <tr><td>Hops total</td>${rowCells(V.map(b => sum(b.hops, x => x.ge) / b.size), 1, ' g/L', 0.05)}</tr>
   <tr><td>Dry hop</td>${rowCells(V.map(b => stageGpl(b, 'Dry hop')), 1, ' g/L', 0.05)}</tr>
   <tr><td>Yeast</td>${textCells(V.map(b => b.yeasts.join(' + ')))}</tr>
   <tr><td>Mash</td>${textCells(V.map(b => b.mashSteps))}</tr>
@@ -358,13 +360,13 @@ function hopTable(V) {
     body += keys.map(k => {
       const any = maps.find(m => m.get(k)).get(k);
       return `<tr><td>${esc(any.name)}</td>` + presenceCells(V, b => maps[V.indexOf(b)].get(k),
-        (o, p) => `${fmt(o.g, 0)} g${p && Math.abs(o.g - p.g) >= 1 ? (o.g > p.g ? ' ▲' : ' ▼') : ''}<span class="sm">${esc(o.times.join(', '))}</span>`,
+        (o, p) => `${fmt(o.g, 0)} g${p && Math.abs(o.g - p.g) >= 1 ? (o.g > p.g ? ' ▲' : ' ▼') : ''}${o.ge > o.g + 0.5 ? `<span class="sm">≈ ${fmt(o.ge, 0)} g pellets</span>` : ''}<span class="sm">${esc(o.times.join(', '))}</span>`,
         (o, p) => Math.abs(o.g - p.g) >= 1 || o.times.join() !== p.times.join()) + '</tr>';
     }).join('');
     body += `<tr><td class="muted" style="color:var(--muted)">${st} total</td>${rowCells(V.map(b => stageGpl(b, st)), 1, ' g/L', 0.05)}</tr>`;
   });
   return `<div class="card"><h3>Hop schedule (grams, with timing)</h3><div class="tbl-wrap"><table>${head(V)}<tbody>${body}</tbody></table></div>
-    <p class="note">Cryo and lupulin products are listed separately from pellets, so a switch to cryo shows as a change.</p></div>`;
+    <p class="note">Cryo and lupulin products are listed separately from pellets, so a switch to cryo shows as a change. Grams are as weighed; g/L rates count cryo, lupulin and LupuMax as double strength (pellet equivalent).</p></div>`;
 }
 function waterTable(V) {
   if (!V.some(b => b.water || b.miscs.length)) return '';

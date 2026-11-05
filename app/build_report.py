@@ -77,6 +77,16 @@ def hop_form(h):
     return "Pellet"
 
 
+# Cryo, lupulin and LupuMax products are concentrated lupulin: 1 g does the work of about 2 g of
+# pellets. Flavour weighting and every g/L rate use pellet-equivalent grams (g x strength);
+# recipe listings still show the grams actually weighed. IBU comes from Brewfather (alpha-based).
+CONCENTRATED_STRENGTH = 2.0
+
+
+def hop_strength(h):
+    return CONCENTRATED_STRENGTH if hop_form(h) == "Cryo / lupulin" else 1.0
+
+
 def hop_stage(h):
     use = h.get("use") or ""
     t = h.get("time") or 0
@@ -328,14 +338,17 @@ def normalise(raw):
         hops = []
         for h in r.get("hops") or []:
             g = num(h.get("amount")) or 0
+            strength = hop_strength(h)
             hops.append({
                 "name": (h.get("name") or "Unknown").strip(),
                 "variety": hop_variety(h.get("name")),
                 "form": hop_form(h),
                 "stage": hop_stage(h),
                 "use": h.get("use") or "",
-                "g": r1(g),
-                "gpl": r1(g / size, 2),
+                "g": r1(g),                       # grams weighed
+                "strength": strength,              # 2 for cryo / lupulin / LupuMax
+                "ge": r1(g * strength),            # pellet-equivalent grams
+                "gpl": r1(g * strength / size, 2),  # pellet-equivalent g/L
                 "alpha": num(h.get("alpha")),
                 "time": num(h.get("time")),
                 "day": num(h.get("day")),
@@ -407,24 +420,25 @@ def write_csvs(brews):
             "abvPlan", "ibu", "ebc", "eff", "effPlan", "att", "attPlan", "mashTemp", "boil", "rating"]
     with open(os.path.join(OUT, "brews.csv"), "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
-        w.writerow(cols + ["yeast", "hop_varieties", "total_hops_g", "dry_hop_g_per_l"])
+        w.writerow(cols + ["yeast", "hop_varieties", "total_hops_g", "dry_hop_g_per_l", "total_hops_pellet_equiv_g"])
         for b in brews:
-            dh = sum(h["g"] for h in b["hops"] if h["stage"] == "Dry hop")
+            dh = sum(h["ge"] for h in b["hops"] if h["stage"] == "Dry hop")
             w.writerow([b[c] for c in cols] + [
                 "; ".join(b["yeasts"]),
                 ", ".join(sorted({h["variety"] for h in b["hops"]})),
                 r1(sum(h["g"] for h in b["hops"])),
                 r1(dh / b["size"], 2) if b["size"] else None,
+                r1(sum(h["ge"] for h in b["hops"])),
             ])
     with open(os.path.join(OUT, "hops.csv"), "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
         w.writerow(["no", "date", "brew", "hop", "variety", "form", "stage", "grams", "g_per_l",
-                    "alpha", "boil_or_stand_min", "dry_hop_day", "temp_c", "ibu"])
+                    "alpha", "boil_or_stand_min", "dry_hop_day", "temp_c", "ibu", "pellet_equiv_g"])
         for b in brews:
             for h in b["hops"]:
                 w.writerow([b["no"], b["date"], b["name"], h["name"], h["variety"], h["form"], h["stage"],
                             h["g"], h["gpl"], h["alpha"], h["time"] if h["stage"] != "Dry hop" else None,
-                            h["day"] if h["stage"] == "Dry hop" else None, h["temp"], h["ibu"]])
+                            h["day"] if h["stage"] == "Dry hop" else None, h["temp"], h["ibu"], h["ge"]])
     with open(os.path.join(OUT, "malts.csv"), "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
         w.writerow(["no", "date", "brew", "fermentable", "supplier", "group", "kg", "percent", "ebc"])

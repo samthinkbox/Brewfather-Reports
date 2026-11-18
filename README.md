@@ -11,7 +11,7 @@ Brewfather API key, and your data stays there.
 1. Install Python 3.9 or newer (python.org). Nothing else is needed: it uses only Python's standard library.
 2. Unzip the package somewhere, for example `Documents/Brewfather Reports`.
 3. Start it: double-click `start.bat` (Windows), or run `./start.sh` (Mac/Linux), or `python app/server.py`.
-4. Open http://localhost:8765/admin.html. The first time, it asks for:
+4. Open http://localhost:8642/admin.html. The first time, it asks for:
    - the **setup code** shown in the server window,
    - your **Brewfather User ID and API key** (Brewfather › Settings › API › Generate key; give it read access
      to batches and recipes),
@@ -152,4 +152,4 @@ Some things to know:
 
 If you close it while a fetch or rebuild is running, that run is cut short. Click the button again next time.
 Automatic fetching only happens while the server is running.
-To look at your history again, double-click start.bat and open http://localhost:8765. You’ll only need your admin password; the setup code was for the first time.
+To look at your history again, double-click start.bat and open http://localhost:8642. You’ll only need your admin password; the setup code was for the first time.

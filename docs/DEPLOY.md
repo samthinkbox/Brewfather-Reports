@@ -9,7 +9,7 @@ Brewfather account.
 ```
 unzip brewfather-reports-1.0.0.zip -d /opt
 cd /opt/brewfather-reports-1.0.0
-python3 app/server.py --proxy --port 8765
+python3 app/server.py --proxy --port 8642
 ```
 
 `--proxy` tells it to trust the `X-Forwarded-For` and `X-Forwarded-Proto` headers from your web server,
@@ -25,7 +25,7 @@ setup, because whoever enters the code first sets the admin password.
 
 ```
 reports.example.com {
-    reverse_proxy 127.0.0.1:8765
+    reverse_proxy 127.0.0.1:8642
 }
 ```
 
@@ -33,19 +33,19 @@ reports.example.com {
 
 ```
 location / {
-    proxy_pass http://127.0.0.1:8765;
+    proxy_pass http://127.0.0.1:8642;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
     proxy_set_header X-Forwarded-Proto $scheme;
 }
 ```
 
-To serve it under a sub-path such as `/brewing/`, use `location /brewing/ { proxy_pass http://127.0.0.1:8765/; ... }`.
+To serve it under a sub-path such as `/brewing/`, use `location /brewing/ { proxy_pass http://127.0.0.1:8642/; ... }`.
 Every link in the pages is relative, except the Admin page's calls to `/api/...`, so a sub-path needs a second
 `location /api/` block, or a sub-domain instead (simpler).
 
 **IIS** (Windows Server): install URL Rewrite and Application Request Routing, then add a reverse-proxy rule
-to `http://127.0.0.1:8765` and turn on HTTPS for the site.
+to `http://127.0.0.1:8642` and turn on HTTPS for the site.
 
 ## 3. Keep it running
 
@@ -58,7 +58,7 @@ After=network-online.target
 
 [Service]
 WorkingDirectory=/opt/brewfather-reports-1.0.0
-ExecStart=/usr/bin/python3 app/server.py --proxy --port 8765
+ExecStart=/usr/bin/python3 app/server.py --proxy --port 8642
 User=brewreports
 Restart=on-failure
 
@@ -135,8 +135,8 @@ systemctl status brew-reports
 ```
 
 It starts at boot and restarts if it stops. It listens only on 127.0.0.1, so its port is never open to the internet
-and the Plesk firewall needs no change. Pick another port than 8765 if something already uses it
-(`ss -ltn | grep 8765` shows nothing when it is free).
+and the Plesk firewall needs no change. Pick another port than 8642 if something already uses it
+(`ss -ltn | grep 8642` shows nothing when it is free).
 
 ### 5. Send the subdomain to it
 
@@ -148,7 +148,7 @@ In Plesk › `brew.yourdomain.com` › **Apache & nginx Settings**:
 
    ```
    location / {
-       proxy_pass http://127.0.0.1:8765;
+       proxy_pass http://127.0.0.1:8642;
        proxy_set_header Host $host;
        proxy_set_header X-Forwarded-For $remote_addr;
        proxy_set_header X-Forwarded-Proto $scheme;
@@ -187,7 +187,7 @@ Then click **Rebuild pages from saved data** on the Admin page. Your `.env` and 
 - **502 Bad Gateway:** the service isn't running or the ports differ. Check `systemctl status brew-reports` and
   `journalctl -u brew-reports -n 50`.
 - **The page shows a WordPress or Plesk default page:** Proxy mode is still on, or the nginx directives weren't saved.
-- **"Can't use port 8765":** another program has that port. Choose another in both the service file and the nginx directives.
+- **"Can't use port 8642":** another program has that port. Choose another in both the service file and the nginx directives.
 - **Forgot the admin password:** `systemctl stop brew-reports`, delete `data/admin.json`, `systemctl start brew-reports`,
   and use the new setup code from the log. Your saved Brewfather key is kept.
 

@@ -11,7 +11,7 @@ Wants=network-online.target
 # 1. the folder you installed it in
 WorkingDirectory=/var/www/vhosts/yourdomain.com/brew-reports
 # 2. Python 3.9+ (e.g. /usr/bin/python3.11 on AlmaLinux 8) and the port; use the same port in the nginx directives
-ExecStart=/usr/bin/python3 -u app/server.py --proxy --port 8765
+ExecStart=/usr/bin/python3 -u app/server.py --proxy --port 8642
 # 3. the subscription's system user (Plesk > Hosting & DNS > Hosting)
 User=yoursysuser
 Group=psacln

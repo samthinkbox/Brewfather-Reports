@@ -46,7 +46,7 @@ template; the template's own JS renders tables and SVG charts. `layout.apply(pag
 adds the header, CSS and footer to every page.
 
 ## Server (`app/server.py`)
-- `python app/server.py [--host H] [--port 8765] [--proxy]`. `--proxy` trusts forwarded
+- `python app/server.py [--host H] [--port 8642] [--proxy]`. `--proxy` trusts forwarded
   headers when behind nginx/Caddy/IIS.
 - First run prints a one-time **setup code**; the Admin page asks for it, the Brewfather
   credentials and an admin password (PBKDF2 hash in `data/admin.json`).
@@ -58,7 +58,7 @@ adds the header, CSS and footer to every page.
   (`next_brew.py --upload`), run as subprocesses with a live log.
 - `EDITABLE` lists the config files the Admin page may edit (size-limited; JSON validated).
 - On Windows the socket uses `SO_EXCLUSIVEADDRUSE`: plain `SO_REUSEADDR` let two servers share
-  port 8765 and caused "setup code is wrong". Don't remove it.
+  a port and caused "setup code is wrong". Don't remove it.
 
 ## Brewfather API facts
 - Recipes support POST and PATCH; batch PATCH only accepts status and measured fields.
@@ -127,5 +127,5 @@ There is no test suite. After a change:
    recipe JSON (and run a test server on another port with a known session token).
 
 ## Deployment
-Runs locally (start.bat, http://localhost:8765) or on a public server behind a reverse proxy
+Runs locally (start.bat, http://localhost:8642) or on a public server behind a reverse proxy
 with HTTPS; see `docs/DEPLOY.md` (Caddy, nginx, IIS, systemd, Plesk).

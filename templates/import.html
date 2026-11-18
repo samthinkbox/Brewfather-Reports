@@ -214,7 +214,7 @@ function say(id, text, good) { const el = document.getElementById(id); el.textCo
 async function start() {
   let st;
   try { st = await api('/api/status'); }
-  catch (e) { gate('<h2>Start the Brewfather Reports server</h2><p>This page needs the server. Run <code>start.bat</code> (or <code>python app/server.py</code>) and open <a href="http://localhost:8765/import.html">http://localhost:8765/import.html</a>.</p>'); return; }
+  catch (e) { gate('<h2>Start the Brewfather Reports server</h2><p>This page needs the server. Run <code>start.bat</code> (or <code>python app/server.py</code>) and open <a href="http://localhost:8642/import.html">http://localhost:8642/import.html</a>.</p>'); return; }
   if (!st.loggedIn) { gate('<h2>Sign in first</h2><p>Importing creates recipes in your Brewfather account, so it needs the admin password. <a href="admin.html?next=import.html">Sign in on the Admin page</a>.</p>'); return; }
   S.info = await api('/api/import/info');
   if (!S.info.ready) { gate('<h2>Fetch your brews first</h2><p>Your latest brew (or a recipe you choose on the Admin page) is used as your standard. <a href="admin.html">Fetch from Brewfather on the Admin page</a>.</p>'); return; }

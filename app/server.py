@@ -1,6 +1,6 @@
 """Brewfather Reports web server: the report pages plus the Admin page.
 
-    python app/server.py                         # http://127.0.0.1:8765
+    python app/server.py                         # http://127.0.0.1:8642
     python app/server.py --port 8080
     python app/server.py --proxy                 # behind nginx/Caddy/IIS: trust X-Forwarded-For and -Proto
     python app/server.py --host 0.0.0.0          # listen on every network interface (use HTTPS in front of it)
@@ -735,7 +735,7 @@ class Server(http.server.ThreadingHTTPServer):
 def main():
     ap = argparse.ArgumentParser(description="Brewfather Reports web server")
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=8642)
     ap.add_argument("--proxy", action="store_true", help="trust X-Forwarded-For/-Proto from a reverse proxy")
     a = ap.parse_args()
     STATE["proxy"] = a.proxy

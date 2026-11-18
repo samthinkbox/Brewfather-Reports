@@ -42,6 +42,7 @@ def pages():
     p = [("report.html", "Brew History"), ("versions.html", "Recipe versions")]
     if s.get("next_brew") and os.path.exists(paths.app("next_brew.py")):
         p.append(("next_brew.html", "Next Brew"))
+    p.append(("import.html", "Import recipe"))
     p.append(("admin.html", "Admin"))
     return p
 
@@ -111,6 +112,12 @@ def write_static_pages():
         admin = f.read()
     with open(os.path.join(OUT, "admin.html"), "w", encoding="utf-8") as f:
         f.write(apply(admin, "admin.html"))
+    with open(paths.template("import.html"), encoding="utf-8") as f:
+        imp = f.read()
+    with open(paths.template("hop_radar.js"), encoding="utf-8") as f:
+        imp = imp.replace("/*__HOP_RADAR__*/", f.read())
+    with open(os.path.join(OUT, "import.html"), "w", encoding="utf-8") as f:
+        f.write(apply(imp, "import.html"))
     with open(os.path.join(paths.ROOT, "TERMS.md"), encoding="utf-8") as f:
         terms = markdown(f.read())
     with open(os.path.join(paths.ROOT, "LICENSE"), encoding="utf-8") as f:

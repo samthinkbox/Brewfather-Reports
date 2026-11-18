@@ -18,8 +18,9 @@ FILES = [
     # the program
     "app/server.py", "app/run.py", "app/fetch.py", "app/brewfather.py", "app/build_report.py",
     "app/hop_flavour.py", "app/layout.py", "app/settings.py", "app/version.py", "app/paths.py",
+    "app/brew_calc.py", "app/recipe_parse.py", "app/recipe_import.py", "app/ai_parse.py",
     # page templates
-    "templates/report.html", "templates/versions.html", "templates/admin.html", "templates/terms.html",
+    "templates/report.html", "templates/versions.html", "templates/admin.html", "templates/terms.html", "templates/import.html",
     "templates/hop_radar.js",
     # settings users edit (exclude.txt and families.txt are created by the Admin page, so unzipping
     # an update never overwrites a user's own copies)
@@ -29,7 +30,8 @@ FILES = [
     "README.md", "TERMS.md", "LICENSE", "docs/DEPLOY.md", "docs/brew-reports.service", "start.bat", "start.sh",
 ]
 STARTERS = {".gitignore": ".env\ndata/\noutput/\n__pycache__/\n"}
-NEVER = (".env", "admin.json", "batches.json", "settings.json", "next_brew.py", "exclude.txt", "families.txt")
+NEVER = (".env", "admin.json", "batches.json", "settings.json", "next_brew.py", "exclude.txt", "families.txt",
+         "import_template.json", "imported.json")
 
 
 def main():

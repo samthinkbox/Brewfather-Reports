@@ -1,5 +1,5 @@
 """Product name, version and copyright, shown in every page footer and the Admin page."""
 NAME = "Brewfather Reports"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 COPYRIGHT = "© 2026 Thinkbox"
 LICENSE = "MIT"

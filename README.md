@@ -38,6 +38,8 @@ Every page has the same header with links to the others.
   - **Results:** planned vs actual ABV and efficiency, and attenuation.
   - **Brew log:** click a brew for its details and a hop flavour chart.
 - **Recipe versions** (`versions.html`): what changed between brews of the same recipe, and how it turned out.
+- **Import recipe** (`import.html`): paste a recipe from a magazine, book or web page and create it in Brewfather, scaled to your
+  batch. See below.
 - **Admin:** see below.
 - **Terms:** copyright, licence and terms of use.
 
@@ -55,6 +57,8 @@ CSV files (`brews.csv`, `hops.csv`, `malts.csv`) can be downloaded from the Admi
   - Whether the report pages need a sign-in. They are private by default.
 - **Recipe families:** which brews belong together on the Recipe versions page (`families.txt`).
 - **Extra hop flavours:** aroma scores for hops HopDatabase doesn't have (`hop_flavours_extra.json`).
+- **Standard recipe for imports:** the Brewfather recipe that imported recipes are built on (your latest brew if you don't choose one).
+- **AI recipe reader (optional):** connect Claude, ChatGPT, Gemini or Copilot with your own API key.
 - **Brewfather connection:** test the connection, or change the User ID and API key.
 - **Downloads:** the CSV files and a JSON backup of every batch.
 - **Admin password:** change it, or sign out.
@@ -72,6 +76,34 @@ collects them from hop suppliers. A brew's chart averages its hops by grams:
 **Save PNG for Brewfather** saves the chart as a 1000 × 1000 image to add to a recipe or batch in the
 Brewfather app. Brewfather's API can't upload images.
 
+## Import recipe
+
+Paste a whole recipe (title, batch size, OG/FG/IBU, malts, hops, yeast, method) and click **Read recipe**.
+
+1. **Reading.** By default the recipe is read on your own server. It understands metric and imperial amounts, US and imperial
+   gallons, °F, tables copied from web pages, and BeerSmith/Brewfather-style printouts. Anything it can't settle becomes a question
+   for you, with a recommended answer. Tick "Answer the questions for me" to take the recommended answers straight away.
+2. **Matching.** Malts, hops and yeast are matched to ingredients you have used before: crystal malts by colour, yeasts by strain
+   or family (for example WLP001 → your US-05). A hop you have never used can be kept as a new ingredient or swapped for one of
+   yours with a similar aroma. A bittering hop can be swapped for your usual bittering hop.
+3. **Scaling to your batch.**
+   - The grain bill is scaled to reach the recipe's OG at your batch size and efficiency. If the recipe has no OG, its efficiency
+     (or 72%) is used to work it out.
+   - Bittering hops are scaled to the recipe's IBU, using your hops' alpha acids. Boil additions longer than your boil are
+     shortened, and the bittering makes up the difference.
+   - Whirlpool and dry hops keep the same grams per litre. Cryo and lupulin count as double strength.
+   - Hop totals are shown in 100 g bags.
+4. **Your standards.** Equipment, mash, fermentation, folder and usual yeast come from your standard recipe (Admin page). For
+   water you can keep your standard salts, or get salts worked out for West Coast IPA, NEIPA or pale ale on your own water.
+5. **Review and create.** Every match and amount can be changed. **Create in Brewfather** adds it as a new recipe; it never
+   changes your existing recipes. The Brewfather API key needs permission to edit recipes.
+
+**Optional AI reader.** On the Admin page you can connect Claude (Anthropic), ChatGPT (OpenAI), Gemini (Google) or Copilot (GitHub
+Models, or your own Azure OpenAI deployment) with your own API key. The model and API address can be changed; a local model server
+on `http://localhost` with an OpenAI-style API also works under "Copilot". The AI reads the recipe and picks your matching
+ingredients, and the same questions and review follow. Without a key, **Copy a prompt for my own chat AI** gives you a prompt to
+paste into any chat AI in your browser; paste its JSON answer back into the box and click Read recipe.
+
 ## Command line
 
 ```
@@ -87,12 +119,12 @@ python app/run.py --update-hops   # download the latest HopDatabase hop data fir
 |---|---|
 | `start.bat`, `start.sh` | Start the server (Windows, Mac/Linux). |
 | `app/` | The Python program. `paths.py` says where everything lives. |
-| `templates/` | The page templates (Brew History, Recipe versions, Admin, Terms) and the hop chart script. |
+| `templates/` | The page templates (Brew History, Recipe versions, Import recipe, Admin, Terms) and the hop chart script. |
 | `config/` | Files you edit, also editable on the Admin page: `exclude.txt` (brews left out), `families.txt` (recipe families), `hop_flavours_extra.json` (extra hop flavours). |
 | `hopdata/` | Hop aroma data from HopDatabase (MIT licence). |
 | `docs/` | Running it on a public web server ([DEPLOY.md](docs/DEPLOY.md)). |
 | `tools/` | Building the installable package. |
-| `.env` | Your Brewfather User ID and API key (written by the Admin page). Keep it private. |
+| `.env` | Your Brewfather User ID and API key, and any AI reader key (written by the Admin page). Keep it private. |
 | `data/` | Downloaded brews, settings and the admin password hash. Back it up; never share it. |
 | `output/` | The built pages. |
 

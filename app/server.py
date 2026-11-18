@@ -26,10 +26,13 @@ from datetime import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import ai_parse  # noqa: E402
 import build_report  # noqa: E402
 import hop_flavour  # noqa: E402
 import layout  # noqa: E402
 import paths  # noqa: E402
+import recipe_import  # noqa: E402
+import recipe_parse  # noqa: E402
 import settings  # noqa: E402
 import version  # noqa: E402
 from brewfather import Brewfather, load_env  # noqa: E402
@@ -45,7 +48,7 @@ SESSION_SECONDS = 12 * 3600
 COOKIE = "bfr_session"
 EDITABLE = {"families.txt": "text", "exclude.txt": "text", "hop_flavours_extra.json": "json"}
 STATIC = {".html": "text/html; charset=utf-8", ".csv": "text/csv; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml"}
-ALWAYS_PUBLIC = {"admin.html", "terms.html"}
+ALWAYS_PUBLIC = {"admin.html", "terms.html", "import.html"}  # pages with no brew data in them
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 PY = [sys.executable, "-I"]
@@ -90,18 +93,56 @@ def creds():
     return env.get("BREWFATHER_USER_ID") or "", env.get("BREWFATHER_API_KEY") or ""
 
 
-def save_creds(user_id, api_key):
+def set_env(values):
+    """Write or (with value None) remove keys in .env, keeping every other line."""
     keep = []
     if os.path.exists(ENV_FILE):
         with open(ENV_FILE, encoding="utf-8") as f:
-            keep = [ln.rstrip("\n") for ln in f if not ln.strip().startswith(("BREWFATHER_USER_ID", "BREWFATHER_API_KEY"))]
-    keep += [f"BREWFATHER_USER_ID={user_id}", f"BREWFATHER_API_KEY={api_key}"]
+            keep = [ln.rstrip("\n") for ln in f if ln.split("=", 1)[0].strip() not in values]
+    keep += [f"{k}={v}" for k, v in values.items() if v is not None]
     with open(ENV_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(keep) + "\n")
     try:
         os.chmod(ENV_FILE, 0o600)
     except OSError:
         pass
+
+
+def save_creds(user_id, api_key):
+    set_env({"BREWFATHER_USER_ID": user_id, "BREWFATHER_API_KEY": api_key})
+
+
+# ------------------------------------------------------------------ recipe import
+RECIPE_LIST = {"at": 0, "items": []}
+
+
+def brewfather_recipes(force=False):
+    """Your Brewfather recipes (name, id, folder), cached for 10 minutes to save API calls."""
+    if force or now() - RECIPE_LIST["at"] > 600:
+        rows = Brewfather().list_all("/recipes", include="path")
+        RECIPE_LIST["items"] = sorted(({"id": r.get("_id"), "name": (r.get("name") or "").strip(), "path": r.get("path") or ""}
+                                       for r in rows), key=lambda r: (r["path"], r["name"].lower()))
+        RECIPE_LIST["at"] = now()
+    return RECIPE_LIST["items"]
+
+
+def import_info():
+    ctx = recipe_import.context(load_batches())
+    return {"ready": bool(ctx["template"]), "standards": recipe_import.standards(ctx) if ctx["template"] else None,
+            "ai": ai_parse.public_info(), "imported": recipe_import.imported()[:10], "credsSet": all(creds())}
+
+
+def import_result(d, opts, applied=None):
+    """The draft with its open questions and the scaled recipe (open questions take their recommended answer
+    in the preview until they are answered)."""
+    ctx = recipe_import.context(load_batches())
+    recipe_import.auto_match(d, ctx)
+    qs = recipe_import.questions(d, ctx)
+    preview = json.loads(json.dumps(d))
+    recipe_import.answer_defaults(preview, ctx)
+    view = recipe_import.build(preview, opts, ctx)[0]
+    return {"ok": True, "draft": d, "questions": qs, "applied": applied or [], "view": view, "opts": opts,
+            "waterGuess": recipe_import.guess_style_water(d)}
 
 
 def test_creds(user_id, api_key):
@@ -267,6 +308,7 @@ def status(logged_in):
         "hops": hop_flavour.info(),
         "waterSources": sources,
         "nextBrew": {"available": os.path.exists(paths.app("next_brew.py")), "uploaded": uploaded},
+        "ai": ai_parse.public_info(),
         "downloads": [n for n in ("brews.csv", "hops.csv", "malts.csv") if os.path.exists(os.path.join(OUT, n))],
         "job": job_view(tail=True),
     })
@@ -395,6 +437,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             p = paths.config(name)
             text = open(p, encoding="utf-8").read() if os.path.exists(p) else ""
             return self.json({"name": name, "content": text})
+        if path == "/api/import/info":
+            return self.json(import_info())
+        if path == "/api/recipes":
+            if not all(creds()):
+                return self.err("Add your Brewfather User ID and API key first.")
+            try:
+                return self.json({"ok": True, "recipes": brewfather_recipes(bool(q.get("refresh")))})
+            except SystemExit as e:
+                return self.err("Brewfather: " + str(e)[:300], 502)
         if path == "/api/download/batches.json":
             if not os.path.exists(BATCHES):
                 return self.err("No data yet.", 404)
@@ -537,6 +588,124 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if os.path.exists(BATCHES):
                 start_job("rebuild")
             return self.json({"ok": True})
+
+        if path == "/api/import/read":
+            text = str(b.get("text") or "")
+            if not text.strip():
+                return self.err("Paste a recipe first.")
+            if len(text) > 60_000:
+                return self.err("That's too long for one recipe (60,000 characters at most).")
+            ctx = recipe_import.context(load_batches())
+            if not ctx["template"]:
+                return self.err("Fetch your brews from Brewfather first (Admin page): your latest brew is used as your standard.")
+            try:
+                pasted = None
+                if "{" in text and re.search(r'"(malts|hops)"\s*:', text):
+                    try:
+                        pasted = ai_parse.extract_json(text)
+                    except ValueError:
+                        return self.err("That looks like JSON from a chat AI but it isn't complete. Copy the whole answer.")
+                if pasted is not None:
+                    d = recipe_parse.from_json(pasted)
+                    d["reader"] = "your chat AI"
+                elif b.get("mode") == "ai":
+                    d = ai_parse.read(text, recipe_import.lib_names(ctx))
+                else:
+                    d = recipe_parse.parse(text, recipe_import.hop_names(ctx))
+            except ai_parse.AIError as e:
+                return self.err(str(e), 502)
+            except ValueError as e:
+                return self.err(f"Couldn't read that as a recipe: {e}")
+            if not d["malts"] and not d["hops"]:
+                return self.err("No malts or hops were found. Check the paste includes the ingredient list"
+                                + (", or try the AI reader." if ai_parse.config()["ready"] else "."))
+            recipe_import.auto_match(d, ctx)
+            applied = recipe_import.answer_defaults(d, ctx) if b.get("auto") else []
+            return self.json(import_result(d, recipe_import.clean_opts(b.get("opts")), applied))
+
+        if path == "/api/import/check":
+            try:
+                d = recipe_import.sanitize(b.get("draft") or {})
+            except (ValueError, TypeError, AttributeError) as e:
+                return self.err(f"That recipe can't be used: {e}")
+            applied = recipe_import.answer_defaults(d, recipe_import.context(load_batches())) if b.get("auto") else []
+            return self.json(import_result(d, recipe_import.clean_opts(b.get("opts")), applied))
+
+        if path == "/api/import/prompt":
+            ctx = recipe_import.context(load_batches())
+            system, user = recipe_parse.prompt(str(b.get("text") or "")[:60_000], recipe_import.lib_names(ctx))
+            return self.json({"ok": True, "prompt": system + "\n\n" + user})
+
+        if path == "/api/import/upload":
+            if not all(creds()):
+                return self.err("Add your Brewfather User ID and API key first.")
+            ctx = recipe_import.context(load_batches())
+            try:
+                d = recipe_import.sanitize(b.get("draft") or {})
+            except (ValueError, TypeError, AttributeError) as e:
+                return self.err(f"That recipe can't be used: {e}")
+            recipe_import.auto_match(d, ctx)
+            open_qs = recipe_import.questions(d, ctx)
+            if open_qs:
+                return self.err(f"Answer the {len(open_qs)} open question(s) first.")
+            _view, recipe = recipe_import.build(d, recipe_import.clean_opts(b.get("opts")), ctx)
+            name = re.sub(r"\s+", " ", str(b.get("name") or "")).strip()[:80]
+            if name:
+                recipe["name"] = name
+            try:
+                done = recipe_import.upload(recipe)
+            except SystemExit as e:
+                msg = str(e)
+                if " 403 " in msg or " 401 " in msg:
+                    return self.err("Brewfather refused: the API key needs write access to recipes "
+                                    "(Brewfather \u203a Settings \u203a API: create a key that can edit recipes).", 502)
+                return self.err("Brewfather: " + msg[:300], 502)
+            RECIPE_LIST["at"] = 0
+            return self.json({"ok": True, "done": done})
+
+        if path == "/api/import/template":
+            rid = str(b.get("id") or "").strip()
+            if rid and not re.fullmatch(r"[A-Za-z0-9_-]{6,64}", rid):
+                return self.err("Bad recipe id.")
+            name = ""
+            if rid:
+                if not all(creds()):
+                    return self.err("Add your Brewfather User ID and API key first.")
+                try:
+                    r = Brewfather().get(f"/recipes/{rid}")
+                except SystemExit as e:
+                    return self.err("Brewfather: " + str(e)[:300], 502)
+                if not isinstance(r, dict) or not r.get("equipment"):
+                    return self.err("That recipe has no equipment profile, so it can't be your standard.")
+                recipe_import.save_template(r)
+                name = (r.get("name") or "").strip()
+            settings.save({"import_template_id": rid, "import_template_name": name})
+            return self.json({"ok": True, "standards": import_info()["standards"]})
+
+        if path == "/api/ai":
+            prov = str(b.get("provider") or "")
+            if prov and prov not in ai_parse.PROVIDERS:
+                return self.err("Unknown AI provider.")
+            model = re.sub(r"[^\w.:/@+-]", "", str(b.get("model") or ""))[:100]
+            endpoint = str(b.get("endpoint") or "").strip()[:200]
+            if endpoint:
+                problem = ai_parse.check_endpoint(endpoint)
+                if problem:
+                    return self.err(problem)
+            key = str(b.get("apiKey") or "").strip()
+            if key and (len(key) > 400 or not re.fullmatch(r"[\x21-\x7e]+", key)):
+                return self.err("That doesn't look like an API key.")
+            if b.get("forget") in ai_parse.PROVIDERS:
+                set_env({ai_parse.env_key(b["forget"]): None})
+            else:
+                settings.save({"ai_provider": prov, "ai_model": model if prov else "", "ai_endpoint": endpoint if prov else ""})
+                if prov and key:
+                    set_env({ai_parse.env_key(prov): key})
+            return self.json({"ok": True, "ai": ai_parse.public_info()})
+
+        if path == "/api/ai/test":
+            problem = ai_parse.test()
+            return self.json({"ok": not problem, "error": problem})
 
         if path == "/api/exclude":
             try:

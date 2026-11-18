@@ -17,6 +17,13 @@ DEFAULTS = {
     "auto_refresh_hours": 0,    # 0 = off; otherwise fetch from Brewfather this often (minimum 1)
     "public_reports": False,    # True = report pages can be viewed without signing in
     "next_brew": False,         # build the Next Brew page (needs next_brew.py set up for your recipes)
+    # Import recipe page
+    "import_template_id": "",   # Brewfather recipe used as your standard (equipment, mash, water...); empty = your latest brew
+    "import_template_name": "",
+    # optional AI recipe reader (the API key itself is kept in .env)
+    "ai_provider": "",          # "", claude, chatgpt, gemini or copilot
+    "ai_model": "",             # empty = the provider's default
+    "ai_endpoint": "",          # empty = the provider's default address
 }
 
 

@@ -3,12 +3,13 @@
 Reports on a home brewer's own brewing history, pulled from their Brewfather account through
 the Brewfather API v2: hops, malt, water, results, recipe versions and hop flavour charts.
 It is packaged so others can run their own copy with their own User ID and API key.
-Version is in `app/version.py` (1.0.0). © 2026 Thinkbox, MIT licence (`LICENSE`, `TERMS.md`).
+Version is in `app/version.py` (1.1.0). © 2026 Thinkbox, MIT licence (`LICENSE`, `TERMS.md`).
 Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`).
 
 ## Ground rules
 - **Python standard library only.** No pip dependencies, no build step, no JS frameworks.
-- **Never put credentials in code or commits.** The Brewfather User ID and API key live only in
+- **Never put credentials in code or commits.** The Brewfather User ID and API key, and any AI reader
+  key (`AI_KEY_CLAUDE`, `AI_KEY_CHATGPT`, `AI_KEY_GEMINI`, `AI_KEY_COPILOT`), live only in
   `.env` (written by the Admin page, gitignored). `data/`, `output/`, `Next Brew/`, `dist/`
   and `HopDatabase/` are private or generated and also gitignored.
 - Commit and push only when the owner asks.
@@ -27,14 +28,18 @@ Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`)
 | `app/fetch.py`, `app/brewfather.py` | API calls; writes `data/batches.json`. `load_env()` reads `.env`. |
 | `app/build_report.py` | Turns batches into `output/report.html`, `versions.html` and the CSVs. |
 | `app/hop_flavour.py` | Hop aroma profiles from HopDatabase data. |
-| `app/layout.py` | Shared header/nav, footer, CSS; builds `admin.html` and `terms.html`. |
+| `app/layout.py` | Shared header/nav, footer, CSS; builds `admin.html`, `import.html` and `terms.html`. |
+| `app/brew_calc.py` | Shared maths: gravity, Morey colour, Tinseth, water/salt plan, `water_block`, ingredient `library`. Used by next_brew and recipe_import. |
+| `app/recipe_parse.py` | Rule-based reader for pasted recipes (`parse`), `from_json` (AI or pasted JSON), the AI `prompt`. |
+| `app/recipe_import.py` | Import page logic: template, matching, `questions`, `build` (scaling + Brewfather recipe), `upload`. |
+| `app/ai_parse.py` | Optional AI reader: Claude, ChatGPT, Gemini, Copilot (GitHub Models / Azure OpenAI) over urllib. |
 | `app/settings.py` | `data/settings.json` with `DEFAULTS` (only known keys are kept). |
 | `app/next_brew.py` | Owner's personal recipe ideas; `--upload` creates them in Brewfather. Not in the package. |
-| `templates/` | Page templates (`report.html`, `versions.html`, `next_brew.html`, `admin.html`, `terms.html`) and `hop_radar.js`. |
+| `templates/` | Page templates (`report.html`, `versions.html`, `next_brew.html`, `import.html`, `admin.html`, `terms.html`) and `hop_radar.js`. |
 | `config/` | Owner-editable files, also editable on the Admin page: `exclude.txt`, `families.txt`, `hop_flavours_extra.json`. |
 | `hopdata/` | Copy of HopDatabase `hops.json` (MIT, © 2024 Kasper Andreas Rømer Grøntved). |
 | `docs/` | `DEPLOY.md` (Caddy, nginx, IIS, systemd, Plesk) and `brew-reports.service`. |
-| `tools/build_package.py` | Builds `dist/brewfather-reports-<version>.zip`; leaves out `.env`, `data/`, `output/`, `next_brew.py`, `exclude.txt`, `families.txt`. |
+| `tools/build_package.py` | Builds `dist/brewfather-reports-<version>.zip`; leaves out `.env`, `data/`, `output/`, `next_brew.py`, `exclude.txt`, `families.txt`. New `app/` modules must be added to its `FILES`. |
 
 Pages are built as static HTML: the Python side computes a JSON payload and injects it into a
 template; the template's own JS renders tables and SVG charts. `layout.apply(page, active)`
@@ -82,6 +87,25 @@ adds the header, CSS and footer to every page.
   label reads "tap".
 - **Recipe versions:** brews grouped into families by `config/families.txt`.
 
+## Import recipe (`import.html`, `recipe_import.py`)
+- Flow: `/api/import/read` (rules, AI, or chat-AI JSON pasted back) → draft → `auto_match` → `questions`
+  (first option = recommended; `answer_defaults` applies them) → `/api/import/check` re-runs with the edited
+  draft → `/api/import/upload` POSTs a **new** recipe (never PATCHes existing ones; refuses while questions are open).
+  The page keeps the draft; the server re-validates it with `sanitize` every time.
+- Draft answers live on the draft: `match` = one of your ingredient names, `"new"`, or `"template"` (yeast);
+  `set_kg` / `set_g` = the user's own amounts; `mash_choice`. Paths like `hops.3.match` are set by the page.
+- Standard ("template") recipe: setting `import_template_id` (chosen on Admin, saved to `data/import_template.json`),
+  else the latest brew's recipe. Its batch size, efficiency, boil, equipment, mash, fermentation, folder, water, miscs
+  and yeast amount are applied. Style fields are dropped.
+- Scaling: grain to the recipe's OG (or its efficiency, else 72%) at your size/efficiency; bittering (boil ≥ 30 min, or the
+  longest boil) to the stated IBU (or IBU calculated from the original) with your alphas; late hops by volume × form strength.
+- Matching: malts by category + tokens, crystal/roast by colour, usage as tie-break; hops by variety (`hop_variety`,
+  HopDatabase aliases); yeasts by strain code then `YEAST_FAMILIES`. Substitutes: aroma cosine (HopDatabase), or the
+  owner's usual bittering hops for bittering-only hops.
+- AI reader is opt-in (`ai_provider` setting). Endpoints must be https (or http://localhost). Default model names will age;
+  they're editable on the Admin page. The connectors were checked against a fake local server, not the real providers.
+- Tests: there is no suite; sample recipes (BYO-style imperial, BeerSmith printout, NZ metric prose, web table) were used.
+
 ## Charts
 - `templates/hop_radar.js` (`window.HopRadar`): `inline` radar, `makeup` stacked bars per aroma
   split by hop, `card` for the PNG, `savePng`.
@@ -99,6 +123,8 @@ There is no test suite. After a change:
    `file://` previews don't work well in the browser pane.
 3. Check numbers against a few known brews.
 4. `python tools/build_package.py` if packaging changed.
+5. Don't test uploads against the owner's Brewfather account: replace `recipe_import.upload` with a stub that saves the
+   recipe JSON (and run a test server on another port with a known session token).
 
 ## Deployment
 Runs locally (start.bat, http://localhost:8765) or on a public server behind a reverse proxy

@@ -11,12 +11,13 @@ Brewfather Reports is an independent tool. It is not made, endorsed or supported
 - You use your own Brewfather User ID and API key (Brewfather › Settings › API). They are stored only on the computer or server where you install Brewfather Reports, in its `.env` file, and are never sent to Thinkbox.
 - Keep the key private. Anyone who has it can read your Brewfather data. If it is exposed, generate a new one in Brewfather.
 - You are responsible for following Brewfather's terms of service and API terms (linked from the [Brewfather API documentation](https://docs.brewfather.app/api)), including their limits on how often the API is used. Don't share one key between several installations to get around those limits.
-- Brewfather Reports only reads from Brewfather, except when you choose an action that writes (such as sending Next Brew recipes). Those actions say so on the button.
+- Brewfather Reports only reads from Brewfather, except when you choose an action that writes (such as sending Next Brew recipes or creating an imported recipe). Those actions say so on the button.
 
 ## Your data
 
 - Your brew data is downloaded to the server you install Brewfather Reports on and stays there. Brewfather Reports sends nothing to Thinkbox and has no analytics or tracking.
 - The only other sites it contacts are `api.brewfather.app`, and `raw.githubusercontent.com` when you click "Update hop data".
+- The AI recipe reader is optional and off until you set it up. If you connect one (Claude, ChatGPT, Gemini or Copilot) with your own API key, the recipe text you paste and your ingredient names are sent to that provider when you choose "Read it with…", under the provider's own terms and at your cost. The key is stored only in `.env` on your server.
 - Report pages are private by default and need the admin password. If you turn on "Reports visible without sign-in", anyone who can reach your server can see your brew history.
 - If you run it on a public server, put it behind HTTPS and keep the admin password strong. You are responsible for the security of your own server.
 

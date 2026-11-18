@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Import recipe</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --hover: rgba(11,11,11,0.04);
+  --accent: #2a78d6; --accent-soft: #cde2fb; --good: #1a7f37; --bad: #c4314b; --warn-bg: #fff4d6; --s1: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.05);
+    --accent: #3987e5; --accent-soft: #184f95; --good: #3fb950; --bad: #f47067; --warn-bg: #3a2f0b; --s1: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.05);
+  --accent: #3987e5; --accent-soft: #184f95; --good: #3fb950; --bad: #f47067; --warn-bg: #3a2f0b; --s1: #3987e5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 48px; }
+a { color: var(--accent); }
+h1 { font-size: 26px; margin: 0 0 2px; letter-spacing: -0.01em; }
+h2 { font-size: 18px; margin: 0 0 10px; }
+h3 { font-size: 14px; margin: 0 0 8px; color: var(--ink-2); font-weight: 600; }
+.sub { color: var(--ink-2); margin: 0 0 16px; max-width: 780px; }
+.note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+section { margin-top: 20px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.std { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); }
+.std b { color: var(--ink); font-weight: 600; }
+textarea, input[type=text], input[type=number], select {
+  font: inherit; color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+textarea { width: 100%; min-height: 240px; font: 12.5px/1.5 ui-monospace, Consolas, monospace; resize: vertical; }
+input[type=number] { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+input.wide { width: 100%; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+button:hover { background: var(--hover); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.primary:hover { filter: brightness(1.08); }
+button:disabled { opacity: .5; cursor: default; }
+button.link { border: 0; background: none; color: var(--accent); padding: 0; text-decoration: underline; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.modes { display: grid; gap: 8px; margin: 12px 0; }
+.mode { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.mode:has(input:checked) { border-color: var(--accent); background: var(--hover); }
+.mode.off { opacity: .6; cursor: default; }
+.mode input { margin-top: 3px; }
+.mode b { display: block; }
+.mode span { font-size: 13px; color: var(--ink-2); }
+label.chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--ink-2); margin: 4px 0 12px; }
+label.chk input { margin-top: 3px; }
+.msg { font-size: 13px; margin: 8px 0 0; min-height: 1em; }
+.msg.ok { color: var(--good); } .msg.bad { color: var(--bad); }
+.q { border-top: 1px solid var(--grid); padding: 12px 0; }
+.q:first-of-type { border-top: 0; padding-top: 4px; }
+.q .t { font-weight: 600; }
+.q .d { font: 12px/1.4 ui-monospace, Consolas, monospace; color: var(--muted); margin: 2px 0 8px; overflow-wrap: anywhere; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.opts button { padding: 5px 10px; font-size: 13px; text-align: left; }
+.opts button small { color: var(--muted); margin-left: 4px; }
+.opts button.rec { border-color: var(--accent); }
+.opts button.rec::after { content: "recommended"; font-size: 11px; color: var(--accent); margin-left: 6px; }
+.cmp { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin: 12px 0 4px; }
+.tile { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--page); }
+.tile .k { font-size: 12px; color: var(--ink-2); }
+.tile .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 5px 6px; text-align: left; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+th { color: var(--ink-2); font-weight: 600; font-size: 12px; white-space: nowrap; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .src { font-size: 12px; color: var(--muted); max-width: 260px; overflow-wrap: anywhere; }
+td select { max-width: 240px; }
+td.arrow { color: var(--muted); padding: 0 2px; }
+.badge { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); margin-left: 4px; white-space: nowrap; }
+.badge.new { border-color: var(--accent); color: var(--accent); }
+.x { border: 0; background: none; color: var(--muted); padding: 2px 6px; font-size: 16px; line-height: 1; }
+.x:hover { color: var(--bad); background: none; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+label.f { display: block; font-size: 13px; color: var(--ink-2); }
+label.f > span { display: block; font-weight: 600; margin-bottom: 4px; }
+label.f select { width: 100%; }
+ul.list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
+ul.list li + li { margin-top: 3px; }
+.banner { background: var(--warn-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+pre.prompt { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; background: var(--page); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px; font: 12px/1.45 ui-monospace, Consolas, monospace; color: var(--ink-2); }
+details summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
+svg text { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; }
+#tip { position: fixed; pointer-events: none; z-index: 50; background: var(--surface); color: var(--ink); border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15); border-radius: 8px; padding: 8px 10px; font-size: 12px; max-width: 320px; display: none; }
+.muted { color: var(--muted); }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+<h1>Import a recipe</h1>
+<p class="sub">Paste a recipe from a magazine, book or web page. It's matched to the ingredients you use, scaled to your batch size and
+  efficiency, rebuilt on your standard recipe (equipment, mash, fermentation, water), then created in Brewfather when you're happy with it.</p>
+
+<div id="gate" class="card" hidden></div>
+
+<div id="app" hidden>
+  <div class="card std" id="std"></div>
+
+  <section>
+    <div class="card">
+      <h2>1. Paste the recipe</h2>
+      <textarea id="text" spellcheck="false" placeholder="Paste the whole recipe here: the title, batch size, OG/FG/IBU, malts, hops, yeast and method."></textarea>
+      <div class="modes" role="radiogroup" aria-label="How to read it">
+        <label class="mode"><input type="radio" name="mode" value="rules" checked>
+          <div><b>I'll check it</b><span>Read on this server. Anything unclear becomes a question for you. Nothing is sent anywhere.</span></div></label>
+        <label class="mode" id="aiMode"><input type="radio" name="mode" value="ai">
+          <div><b id="aiTitle">Read it with an AI</b><span id="aiNote"></span></div></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="auto"> <span>Answer the questions for me with the recommended choices. You can still change everything in the review.</span></label>
+      <div class="btns">
+        <button class="primary" type="button" id="readBtn">Read recipe</button>
+        <button type="button" id="promptBtn">Copy a prompt for my own chat AI</button>
+      </div>
+      <p class="msg" id="readMsg" role="status"></p>
+      <div id="promptBox" hidden>
+        <p class="note">Paste this into ChatGPT, Claude, Gemini or Copilot in your browser. Then replace the recipe in the box above with
+          the JSON it answers with, and click <b>Read recipe</b>. No API key needed.</p>
+        <pre class="prompt" id="promptText"></pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="qsSec" hidden>
+    <div class="card">
+      <div class="btns" style="justify-content:space-between"><h2 style="margin:0" id="qsTitle">2. Questions</h2>
+        <button type="button" id="defaultsBtn">Use the recommended answers</button></div>
+      <div id="qs" style="margin-top:8px"></div>
+    </div>
+  </section>
+
+  <section id="revSec" hidden>
+    <div class="card">
+      <h2 id="revTitle">3. Review and create</h2>
+      <label class="f" style="max-width:520px"><span>Recipe name</span><input type="text" id="name" class="wide" maxlength="80"></label>
+      <div class="cmp" id="cmp"></div>
+      <p class="note" id="scaleNote"></p>
+      <div id="flags"></div>
+
+      <h3 style="margin-top:18px">Malts</h3>
+      <div class="tbl-wrap"><table id="malts"></table></div>
+      <h3 style="margin-top:18px">Hops</h3>
+      <div class="tbl-wrap"><table id="hops"></table></div>
+      <p class="note">Bittering is scaled to the recipe's IBU with your hops' alpha acids. Whirlpool and dry hops keep the same grams per litre
+        (cryo and lupulin count as double strength). Type in a "Yours" amount to set it yourself.</p>
+      <h3 style="margin-top:18px">Yeast</h3>
+      <div class="tbl-wrap"><table id="yeast"></table></div>
+
+      <h3 style="margin-top:18px">Your standards</h3>
+      <div class="grid4" id="optsBox"></div>
+
+      <div class="grid2" style="margin-top:18px">
+        <div><h3 id="flavTitle">Hop flavour</h3><div id="flav"></div></div>
+        <div><h3>Hop bags (100 g)</h3><div class="tbl-wrap"><table id="bags"></table></div>
+          <div id="others"></div></div>
+      </div>
+      <details style="margin-top:14px"><summary>Notes that will go in the recipe</summary><pre class="prompt" id="notes"></pre></details>
+
+      <div class="btns" style="margin-top:18px">
+        <button class="primary" type="button" id="uploadBtn">Create in Brewfather (writes)</button>
+        <button type="button" id="resetBtn">Start again</button>
+      </div>
+      <p class="msg" id="upMsg" role="status"></p>
+    </div>
+  </section>
+
+  <section id="histSec" hidden>
+    <div class="card"><h3>Recently imported</h3><ul class="list" id="hist"></ul></div>
+  </section>
+</div>
+</main>
+<div id="tip" role="tooltip"></div>
+<script>/*__HOP_RADAR__*/</script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (v, d = 1) => v == null || isNaN(v) ? '–' : (+v).toFixed(d);
+const sgf = v => v ? (+v).toFixed(3) : '–';
+const USES = [['Boil', 'Boil'], ['First Wort', 'First wort'], ['Aroma', 'Whirlpool'], ['Dry Hop', 'Dry hop'], ['Mash', 'Mash']];
+const S = { info: null, draft: null, view: null, questions: [], opts: {}, applied: [], busy: false, timer: null };
+
+async function api(path, body) {
+  const opt = body === undefined ? { credentials: 'same-origin' }
+    : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-BFR': '1' }, body: JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error('The server did not answer. Is Brewfather Reports running?'); }
+  if (!r.ok || j.ok === false) throw Object.assign(new Error(j.error || 'Something went wrong.'), { status: r.status });
+  return j;
+}
+function say(id, text, good) { const el = document.getElementById(id); el.textContent = text || ''; el.className = 'msg' + (text ? (good ? ' ok' : ' bad') : ''); }
+
+async function start() {
+  let st;
+  try { st = await api('/api/status'); }
+  catch (e) { gate('<h2>Start the Brewfather Reports server</h2><p>This page needs the server. Run <code>start.bat</code> (or <code>python app/server.py</code>) and open <a href="http://localhost:8765/import.html">http://localhost:8765/import.html</a>.</p>'); return; }
+  if (!st.loggedIn) { gate('<h2>Sign in first</h2><p>Importing creates recipes in your Brewfather account, so it needs the admin password. <a href="admin.html?next=import.html">Sign in on the Admin page</a>.</p>'); return; }
+  S.info = await api('/api/import/info');
+  if (!S.info.ready) { gate('<h2>Fetch your brews first</h2><p>Your latest brew (or a recipe you choose on the Admin page) is used as your standard. <a href="admin.html">Fetch from Brewfather on the Admin page</a>.</p>'); return; }
+  $('#app').hidden = false;
+  renderStd(); renderModes(); renderHist();
+  try { const t = sessionStorage.getItem('bfr_import_text'); if (t) $('#text').value = t; } catch (e) { /* storage blocked */ }
+}
+function gate(html) { const g = $('#gate'); g.innerHTML = html; g.hidden = false; }
+
+function renderStd() {
+  const s = S.info.standards;
+  $('#std').innerHTML = `<span>Scaled to <b>${fmt(s.batch, 0)} L</b> at <b>${fmt(s.eff, 1)}%</b> efficiency, <b>${fmt(s.boil, 0)} min</b> boil</span>
+    <span>Standard: <b>${esc(s.label)}</b></span>
+    <span>Mash ${s.mash.map(m => `${fmt(m[0], 0)} °C ${fmt(m[1], 0)} min`).join(', ') || '–'}</span>
+    <span>Water: ${esc(s.water || '–')}</span><span>Usual yeast: ${esc(s.yeast || '–')}</span>
+    <a href="admin.html#importStd">Change</a>`;
+}
+function renderModes() {
+  const ai = S.info.ai, ready = ai.provider && ai.ready;
+  $('#aiTitle').textContent = ready ? `Read it with ${ai.label}` : 'Read it with an AI (optional)';
+  $('#aiNote').innerHTML = ready
+    ? `Sends the pasted text and your ingredient names to ${esc(ai.label)} (${esc(ai.model)}), which reads it and picks your matching ingredients. Uses your API credit.`
+    : 'Not set up. You can connect Claude, ChatGPT, Gemini or Copilot with your own API key on the <a href="admin.html#ai">Admin page</a>, or use "Copy a prompt" below for free.';
+  $('#aiMode').classList.toggle('off', !ready);
+  $('#aiMode input').disabled = !ready;
+}
+function renderHist() {
+  const h = S.info.imported || [];
+  $('#histSec').hidden = !h.length;
+  $('#hist').innerHTML = h.map(x => `<li>${esc(x.at)}: <b>${esc(x.name)}</b>${x.path ? ` in ${esc(x.path)}` : ''}${x.id ? ` · <a href="${bfLink(x.id)}" target="_blank" rel="noopener">open in Brewfather</a>` : ''}</li>`).join('');
+}
+const bfLink = id => 'https://web.brewfather.app/tabs/recipes/recipe/' + encodeURIComponent(id);
+
+/* ---------------------------------------------------------------- reading */
+async function read() {
+  const text = $('#text').value;
+  try { sessionStorage.setItem('bfr_import_text', text.slice(0, 60000)); } catch (e) { /* storage blocked */ }
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  say('readMsg', mode === 'ai' ? `Asking ${S.info.ai.label}… this can take up to a minute.` : 'Reading…', true);
+  $('#readBtn').disabled = true;
+  try {
+    S.opts = {};
+    const r = await api('/api/import/read', { text, mode, auto: $('#auto').checked, opts: S.opts });
+    say('readMsg', '');
+    apply(r, true);
+  } catch (e) { say('readMsg', e.message); }
+  $('#readBtn').disabled = false;
+}
+function apply(r, first) {
+  S.draft = r.draft; S.view = r.view; S.questions = r.questions; S.waterGuess = r.waterGuess;
+  if (r.applied && r.applied.length) S.applied = S.applied.concat(r.applied);
+  if (first) { S.applied = r.applied || []; $('#name').value = r.view.name; say('upMsg', ''); }
+  renderQuestions(); renderReview();
+  if (first) (S.questions.length ? $('#qsSec') : $('#revSec')).scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function check(auto) {
+  clearTimeout(S.timer);
+  S.timer = setTimeout(async () => {
+    try { apply(await api('/api/import/check', { draft: S.draft, opts: S.opts, auto: !!auto })); }
+    catch (e) { say('upMsg', e.message); }
+  }, auto ? 0 : 250);
+}
+function setPath(path, value) {
+  const parts = path.split('.');
+  let o = S.draft;
+  for (const p of parts.slice(0, -1)) o = o[p];
+  o[parts[parts.length - 1]] = value;
+}
+
+/* ---------------------------------------------------------------- questions */
+function renderQuestions() {
+  const qs = S.questions;
+  $('#qsSec').hidden = !qs.length;
+  $('#qsTitle').textContent = `2. ${qs.length} question${qs.length === 1 ? '' : 's'}`;
+  $('#qs').innerHTML = qs.map((q, n) => `<div class="q" data-q="${n}">
+    <div class="t">${esc(q.text)}</div>${q.detail ? `<div class="d">${esc(q.detail)}</div>` : '<div style="height:6px"></div>'}
+    <div class="opts">${q.options.map((o, k) => `<button type="button" data-opt="${n}:${k}"${k === 0 ? ' class="rec"' : ''}>${esc(o.label)}${o.note ? `<small>${esc(o.note)}</small>` : ''}</button>`).join('')}
+      ${q.field ? `<span><input type="${q.kind === 'text' ? 'text' : 'number'}" step="any" data-qin="${n}" aria-label="${esc(q.text)}"${q.kind === 'text' ? ' style="width:240px"' : ''}>${q.unit ? ` ${esc(q.unit)}` : ''} <button type="button" data-qset="${n}">Use</button></span>` : ''}</div></div>`).join('');
+  $('#revTitle').textContent = qs.length ? '3. Preview (open questions use the recommended answer for now)' : '3. Review and create';
+  $('#uploadBtn').disabled = qs.length > 0;
+}
+
+/* ---------------------------------------------------------------- review */
+function opt(value, label, cur) { return `<option value="${esc(value)}"${value === cur ? ' selected' : ''}>${esc(label)}</option>`; }
+function renderReview() {
+  const v = S.view, d = S.draft;
+  $('#revSec').hidden = false;
+  const tile = (k, mine, orig) => `<div class="tile"><div class="k">${k}</div><div class="v">${mine}</div>${orig ? `<div class="s">Original ${orig}</div>` : ''}</div>`;
+  $('#cmp').innerHTML = tile('Batch', `${fmt(v.size, 0)} L`, v.srcL ? `${fmt(v.srcL, 1)} L` : 'not given') +
+    tile('OG', sgf(v.og), v.src.og ? sgf(v.src.og) : 'not given') + tile('FG', sgf(v.fg), v.src.fg ? sgf(v.src.fg) : 'not given') +
+    tile('ABV', `${fmt(v.abv)}%`, v.src.abv ? `${fmt(v.src.abv)}%` : 'not given') +
+    tile('IBU', fmt(v.ibu, 0), v.src.ibu ? `${fmt(v.src.ibu, 0)} (calc. ${fmt(v.src.ibuCalc, 0)})` : `calc. ${fmt(v.src.ibuCalc, 0)}`) +
+    tile('Efficiency', `${fmt(v.eff)}%`, v.src.eff ? `${fmt(v.src.eff)}%` : 'not given') +
+    tile('Colour', `${fmt(v.ebc, 0)} EBC`, '');
+  $('#scaleNote').textContent = `Read by ${d.reader === 'rules' ? 'the built-in reader' : d.reader}. Volume factor ×${fmt(v.factor, 3)}. ${fmt(v.kg, 2)} kg of grain, ${fmt(v.dryGpl)} g/L dry hop, ${fmt(v.aromaGpl)} g/L whirlpool. Brewfather recalculates the figures when you open the recipe.`;
+  const flag = (title, items) => items && items.length ? `<div class="banner"><b>${title}</b><ul class="list">${items.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
+  $('#flags').innerHTML = flag('Check these', v.warnings) + flag('Assumed', v.assumptions) +
+    (S.applied.length ? `<details style="margin-top:10px"><summary>Answered for you (${S.applied.length})</summary><ul class="list">${S.applied.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '') +
+    (d.unparsed && d.unparsed.length ? flag('Lines with amounts that weren’t understood (not used)', d.unparsed) : '');
+
+  $('#malts').innerHTML = '<thead><tr><th>In the recipe</th><th class="n">kg</th><th class="n">%</th><th></th><th>Yours</th><th class="n">kg</th><th class="n">%</th><th class="n">EBC</th><th></th></tr></thead><tbody>' +
+    v.malts.map(m => {
+      const dm = d.malts[m.i], cur = dm.match || '';
+      const ch = m.choices.slice();
+      if (dm.match && dm.match !== 'new' && !ch.includes(dm.match)) ch.unshift(dm.match);
+      return `<tr><td><div>${esc(m.src)}</div>${dm.raw && dm.raw !== m.src ? `<div class="src">${esc(dm.raw)}</div>` : ''}</td>
+        <td class="n"><input type="number" step="0.01" min="0" value="${dm.kg ?? ''}" data-p="malts.${m.i}.kg" aria-label="Recipe kg"></td>
+        <td class="n">${m.srcPct != null ? fmt(m.srcPct) : ''}</td><td class="arrow">→</td>
+        <td><select data-p="malts.${m.i}.match" aria-label="Your malt">${cur ? '' : '<option value="">Choose…</option>'}${ch.map(n => opt(n, n, cur)).join('')}${opt('new', `Keep "${m.src}" (new)`, cur)}</select>${m.new ? '<span class="badge new">new</span>' : ''}</td>
+        <td class="n"><input type="number" step="0.01" min="0" placeholder="${fmt(m.kg, 2)}" value="${m.set ? m.kg : ''}" data-p="malts.${m.i}.set_kg" aria-label="Your kg"></td>
+        <td class="n">${fmt(m.pct)}</td><td class="n">${fmt(m.ebc, 0)}</td>
+        <td><button class="x" type="button" data-del="malts.${m.i}" aria-label="Remove ${esc(m.src)}">×</button></td></tr>`;
+    }).join('') + '</tbody>';
+
+  $('#hops').innerHTML = '<thead><tr><th>In the recipe</th><th class="n">g</th><th class="n">α %</th><th>When</th><th></th><th>Yours</th><th class="n">g</th><th class="n">α %</th><th class="n">IBU</th><th></th></tr></thead><tbody>' +
+    v.hops.map(h => {
+      const dh = d.hops[h.i], cur = dh.match || '';
+      let ch = h.choices.concat(h.subs, h.bitter ? (S.view.bittering || []) : []);
+      if (dh.match && dh.match !== 'new') ch.unshift(dh.match);
+      ch = [...new Set(ch)];
+      const when = `<select data-p="hops.${h.i}.use" aria-label="When">${USES.map(([k, l]) => opt(k, l, dh.use || '')).join('')}</select>
+        ${dh.use === 'Dry Hop' ? `day <input type="number" min="0" max="30" style="width:56px" value="${dh.day ?? ''}" placeholder="${h.day ?? ''}" data-p="hops.${h.i}.day" aria-label="Dry hop day">`
+          : dh.use === 'Boil' || dh.use === 'Mash' ? `<input type="number" min="0" max="240" style="width:62px" value="${dh.time ?? ''}" data-p="hops.${h.i}.time" aria-label="Minutes"> min` : ''}`;
+      return `<tr><td><div>${esc(h.src)}</div><div class="src">${esc(dh.raw && dh.raw !== h.src ? dh.raw : '')}</div></td>
+        <td class="n"><input type="number" step="0.1" min="0" style="width:70px" value="${dh.g ?? ''}" data-p="hops.${h.i}.g" aria-label="Recipe grams"></td>
+        <td class="n"><input type="number" step="0.1" min="0" style="width:62px" value="${dh.alpha ?? ''}" data-p="hops.${h.i}.alpha" aria-label="Recipe alpha"></td>
+        <td style="white-space:nowrap">${when}</td><td class="arrow">→</td>
+        <td><select data-p="hops.${h.i}.match" aria-label="Your hop">${cur ? '' : '<option value="">Choose…</option>'}${ch.map(n => opt(n, n, cur)).join('')}${opt('new', `Keep ${h.src} (new)`, cur)}</select>${h.new ? '<span class="badge new">new</span>' : ''}${h.bitter ? '<span class="badge">bittering</span>' : ''}</td>
+        <td class="n"><input type="number" step="1" min="0" style="width:70px" placeholder="${fmt(h.g, 0)}" value="${h.set ? h.g : ''}" data-p="hops.${h.i}.set_g" aria-label="Your grams"></td>
+        <td class="n">${fmt(h.alpha)}</td><td class="n">${fmt(h.ibu)}</td>
+        <td><button class="x" type="button" data-del="hops.${h.i}" aria-label="Remove ${esc(h.src)}">×</button></td></tr>`;
+    }).join('') + '</tbody>';
+
+  const y = v.yeast, dy = d.yeasts[0];
+  const ycur = dy ? (dy.match || '') : 'template';
+  $('#yeast').innerHTML = `<tbody><tr><td>${esc(y.src || 'Not in the recipe')}</td><td class="arrow">→</td><td>${dy
+    ? `<select data-p="yeasts.0.match" aria-label="Your yeast">${ycur ? '' : '<option value="">Choose…</option>'}${[...new Set(y.choices.concat(dy.match && !['new', 'template'].includes(dy.match) ? [dy.match] : []))].map(n => opt(n, n, ycur)).join('')}${opt('template', `My usual (${S.info.standards.yeast || 'template yeast'})`, ycur)}${opt('new', `Keep "${y.src}" (new)`, ycur)}</select>`
+    : esc(y.name)}</td><td class="n">${fmt(y.amount, 0)} ${esc(y.unit || '')}</td><td class="n">${fmt(y.att, 0)}% attenuation</td></tr></tbody>`;
+
+  const water = S.opts.water || S.waterGuess;
+  const std = S.info.standards;
+  $('#optsBox').innerHTML = `
+    <label class="f"><span>Water</span><select data-o="water">${opt('template', `Same as my standard (${std.water || 'template'})`, water)}${opt('IPA', 'West Coast IPA: salts for SO4 275, Cl 50', water)}${opt('NEIPA', 'NEIPA / hazy: salts for SO4 100, Cl 175', water)}${opt('Pale', 'Pale ale / XPA: salts for SO4 175, Cl 70', water)}</select></label>
+    <label class="f"><span>Bitterness</span><select data-o="ibu">${opt('recipe', 'Match the recipe’s stated IBU', S.opts.ibu || 'recipe')}${opt('calc', 'Match the IBU calculated from its hops', S.opts.ibu || 'recipe')}</select></label>
+    <label class="f"><span>Hop amounts</span><select data-o="round">${opt('1', 'Round to 1 g', String(S.opts.round || 1))}${opt('5', 'Round to 5 g', String(S.opts.round || 1))}</select></label>
+    <label class="f"><span>Brewfather folder</span><select data-o="folder">${std.folder ? opt('template', `Same as my standard (${std.folder})`, S.opts.folder || 'template') : opt('template', 'No folder', 'template')}${std.folder ? opt('none', 'No folder', S.opts.folder || 'template') : ''}</select></label>
+    ${d.mash_c ? `<label class="f"><span>Mash</span><select data-p="mash_choice">${opt('standard', `My standard (${(v.mash[0] || [])[0] ?? '–'} °C first step)`, d.mash_choice || 'standard')}${opt('recipe', `The recipe's ${fmt(d.mash_c, 1)} °C`, d.mash_choice || 'standard')}</select></label>` : ''}`;
+  const w = v.water;
+  $('#optsBox').insertAdjacentHTML('beforeend', `<div class="note" style="grid-column:1/-1;margin:0">${w.mode === 'template'
+    ? `Water and salts copied from your standard${Object.keys(w.salts || {}).length ? ': ' + Object.entries(w.salts).map(([k, g]) => `${esc(k)} ${fmt(g)} g`).join(', ') : ''}.`
+    : `Salts for ${esc(w.title)} on ${esc(w.source || 'your water')}: gypsum ${fmt(w.grams.Gypsum)} g, calcium chloride ${fmt(w.grams.CaCl2)} g, Epsom ${fmt(w.grams.Epsom)} g, giving SO4 ${fmt(w.result.SO4, 0)}, Cl ${fmt(w.result.Cl, 0)}, Mg ${fmt(w.result.Mg, 0)}, Ca ${fmt(w.result.Ca, 0)} ppm.`}
+    Mash: ${v.mash.map(m => `${fmt(m[0], 1)} °C for ${fmt(m[1], 0)} min`).join(', ')}. Fermentation and equipment from your standard.</div>`);
+
+  $('#flavTitle').textContent = v.flavour ? `Hop flavour: ${v.flavour.top.join(', ')}` : 'Hop flavour';
+  $('#flav').innerHTML = v.flavour ? HopRadar.inline(v.flavour) + (v.flavour.missing.length ? `<p class="note">No flavour data for ${esc(v.flavour.missing.join(', '))}.</p>` : '') : '<p class="note">No whirlpool or dry hops with flavour data.</p>';
+  $('#bags').innerHTML = '<thead><tr><th>Hop</th><th class="n">Total</th><th class="n">Bags</th></tr></thead><tbody>' +
+    v.bags.map(b => `<tr><td>${esc(b.name)}</td><td class="n">${fmt(b.g, 0)} g</td><td class="n">${b.bags}</td></tr>`).join('') + '</tbody>';
+  $('#others').innerHTML = v.others.length ? `<h3 style="margin-top:14px">Not added (add them in Brewfather if you want them)</h3><ul class="list">${v.others.map(o => `<li>${esc(o)}</li>`).join('')}</ul>` : '';
+  $('#notes').textContent = v.notes;
+}
+
+/* ---------------------------------------------------------------- events */
+$('#readBtn').addEventListener('click', read);
+$('#promptBtn').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/import/prompt', { text: $('#text').value });
+    $('#promptText').textContent = r.prompt; $('#promptBox').hidden = false;
+    try { await navigator.clipboard.writeText(r.prompt); say('readMsg', 'Prompt copied. Paste it into your chat AI.', true); }
+    catch (e) { say('readMsg', 'Select the prompt below and copy it.', true); }
+  } catch (e) { say('readMsg', e.message); }
+});
+$('#defaultsBtn').addEventListener('click', () => check(true));
+$('#resetBtn').addEventListener('click', () => {
+  S.draft = S.view = null; S.questions = []; S.applied = []; S.opts = {};
+  $('#qsSec').hidden = $('#revSec').hidden = true; $('#text').focus(); window.scrollTo(0, 0);
+});
+document.addEventListener('click', e => {
+  const o = e.target.closest('[data-opt]');
+  if (o) {
+    const [n, k] = o.dataset.opt.split(':').map(Number);
+    Object.entries(S.questions[n].options[k].set).forEach(([p, v]) => setPath(p, v));
+    o.closest('.q').style.opacity = .5;
+    return check();
+  }
+  const qs = e.target.closest('[data-qset]');
+  if (qs) {
+    const q = S.questions[+qs.dataset.qset], inp = document.querySelector(`[data-qin="${qs.dataset.qset}"]`);
+    const val = q.kind === 'text' ? inp.value.trim() : parseFloat(inp.value);
+    if (q.kind === 'text' ? !val : isNaN(val)) { inp.focus(); return; }
+    setPath(q.field, val);
+    return check();
+  }
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    const [list, i] = del.dataset.del.split('.');
+    if (S.draft[list].length <= 1 && !S.draft[list === 'malts' ? 'hops' : 'malts'].length) return;
+    S.draft[list].splice(+i, 1);
+    return check();
+  }
+});
+document.addEventListener('change', e => {
+  const p = e.target.dataset && e.target.dataset.p;
+  if (p) {
+    let v = e.target.value;
+    if (e.target.type === 'number') v = v === '' ? null : parseFloat(v);
+    else if (v === '') v = null;
+    setPath(p, v);
+    if (/\.use$/.test(p)) { const i = p.split('.')[1]; if (v === 'Dry Hop') S.draft.hops[i].time = null; }
+    return check();
+  }
+  const o = e.target.dataset && e.target.dataset.o;
+  if (o) { S.opts[o] = e.target.value; check(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.dataset && e.target.dataset.qin !== undefined) { e.preventDefault(); document.querySelector(`[data-qset="${e.target.dataset.qin}"]`).click(); }
+});
+$('#uploadBtn').addEventListener('click', async () => {
+  const name = $('#name').value.trim() || S.view.name;
+  if (!confirm(`Create "${name}" in your Brewfather account?`)) return;
+  $('#uploadBtn').disabled = true;
+  say('upMsg', 'Creating the recipe in Brewfather…', true);
+  try {
+    const r = await api('/api/import/upload', { draft: S.draft, opts: S.opts, name });
+    const d = r.done;
+    $('#upMsg').innerHTML = `Created <b>${esc(d.name)}</b>${d.path ? ` in ${esc(d.path)}` : ''}. ${d.id ? `<a href="${bfLink(d.id)}" target="_blank" rel="noopener">Open it in Brewfather</a>.` : ''}`;
+    $('#upMsg').className = 'msg ok';
+    S.info = await api('/api/import/info'); renderHist();
+  } catch (e) { say('upMsg', e.message); }
+  $('#uploadBtn').disabled = S.questions.length > 0;
+});
+const tip = $('#tip');
+function showTip(e) {
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if (!t) { tip.style.display = 'none'; return; }
+  tip.innerHTML = t.getAttribute('data-tip');
+  tip.style.display = 'block';
+  const q = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + q.width > innerWidth - 8) x = e.clientX - q.width - 14;
+  if (y + q.height > innerHeight - 8) y = Math.max(8, e.clientY - q.height - 14);
+  tip.style.left = Math.max(8, x) + 'px'; tip.style.top = y + 'px';
+}
+document.addEventListener('mousemove', showTip);
+document.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') showTip(e); });
+document.addEventListener('scroll', () => tip.style.display = 'none', true);
+start();
+</script>
+</body>
+</html>

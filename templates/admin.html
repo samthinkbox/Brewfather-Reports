@@ -173,6 +173,35 @@ a { color: var(--accent); }
   </section>
 
   <section class="grid2">
+    <div class="card" id="importStd">
+      <h2>Standard recipe for imports</h2>
+      <p class="note" style="margin:-4px 0 10px">The <a href="import.html">Import recipe</a> page rebuilds pasted recipes on this one: its equipment (batch size, efficiency, boil), mash, fermentation, water and usual yeast.</p>
+      <p id="stdNow" style="margin:0 0 10px;font-size:13px"></p>
+      <label class="f"><span>Use</span><select id="stdPick"><option value="">My latest brew</option></select></label>
+      <div class="btns"><button type="button" id="stdLoad">Load my Brewfather recipes</button><button type="button" id="stdSave">Save</button></div>
+      <p class="msg" id="stdMsg" role="status"></p>
+    </div>
+    <form class="card" id="ai" autocomplete="off">
+      <h2>AI recipe reader <span class="muted" style="font-weight:400;font-size:14px">(optional)</span></h2>
+      <p class="note" style="margin:-4px 0 10px">Lets the Import recipe page send a pasted recipe to an AI to read it, using your own API key and credit. Without it, recipes are read on this server and you answer a few questions instead.</p>
+      <label class="f"><span>Provider</span><select name="provider">
+        <option value="">Off: I'll check recipes myself</option><option value="claude">Claude (Anthropic)</option><option value="chatgpt">ChatGPT (OpenAI)</option>
+        <option value="gemini">Gemini (Google)</option><option value="copilot">Copilot (GitHub Models or Azure OpenAI)</option></select></label>
+      <div id="aiFields" hidden>
+        <label class="f"><span>API key</span><input type="password" name="apiKey" autocomplete="off" spellcheck="false">
+          <span class="note" style="font-weight:400" id="aiKeyNote"></span></label>
+        <label class="f"><span>Model</span><input type="text" name="model" spellcheck="false">
+          <span class="note" style="font-weight:400">Leave empty for the default. Change it if the provider retires the model.</span></label>
+        <label class="f"><span>API address <span class="muted" style="font-weight:400">(advanced)</span></span><input type="text" name="endpoint" spellcheck="false">
+          <span class="note" style="font-weight:400" id="aiEpNote">Leave empty for the default.</span></label>
+      </div>
+      <div class="btns"><button class="primary" type="submit">Save</button><button type="button" id="aiTest">Test</button><button type="button" id="aiForget" hidden>Remove saved key</button></div>
+      <p class="msg" id="aiMsg" role="status"></p>
+      <p class="note">The key is stored in <code>.env</code> on this server and is never shown again. The recipe text and your ingredient names are sent to the provider when you choose "Read it with…".</p>
+    </form>
+  </section>
+
+  <section class="grid2">
     <div class="card">
       <h2>Recipe families</h2>
       <p class="note" style="margin:-4px 0 10px">One family per line for the Recipe versions page, e.g. <code>Pale ale: 12, 15, 21, 30</code>.</p>
@@ -251,6 +280,7 @@ function renderApp() {
   $('#conn').innerHTML = ST.credsSet ? `Connected as User ID <code>${esc(ST.userId)}</code>. The API key is stored in <code>.env</code> on this server and is never shown here.` : 'No Brewfather User ID and API key saved yet.';
   $('#downloads').innerHTML = ST.downloads.map(n => `<a class="btnlink" href="${esc(n)}" download>${esc(n)}</a>`).join('') +
     (d.batches ? '<a class="btnlink" href="/api/download/batches.json">Backup: all batches (JSON)</a>' : '');
+  renderStd(); renderAi();
   showJob(ST.job);
   if (ST.job.running) poll();
   loadBrews(); loadFile('families.txt', 'f_families'); loadFile('hop_flavours_extra.json', 'f_hops');
@@ -369,6 +399,69 @@ $('#password').addEventListener('submit', async e => {
   catch (err) { say('pwMsg', err.message); }
 });
 $('#logout').addEventListener('click', async () => { await api('/api/logout', {}); load(); });
+
+/* ---- standard recipe for imports */
+function renderStd() {
+  const s = ST.settings, id = s.import_template_id;
+  $('#stdNow').innerHTML = id ? `Now: <b>${esc(s.import_template_name || id)}</b>` : 'Now: <b>your latest brew</b>';
+  const pick = $('#stdPick');
+  if (id && !pick.querySelector(`option[value="${CSS.escape(id)}"]`)) pick.insertAdjacentHTML('beforeend', `<option value="${esc(id)}">${esc(s.import_template_name || id)}</option>`);
+  pick.value = id || '';
+}
+$('#stdLoad').addEventListener('click', async () => {
+  say('stdMsg', 'Loading your recipes from Brewfather…', true);
+  try {
+    const r = await api('/api/recipes?refresh=1'), cur = ST.settings.import_template_id || '';
+    $('#stdPick').innerHTML = '<option value="">My latest brew</option>' + r.recipes.map(x => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc((x.path && x.path !== '/' ? x.path.replace(/^\/|\/$/g, '') + ' › ' : '') + (x.name || '(no name)'))}</option>`).join('');
+    say('stdMsg', `${r.recipes.length} recipes. Choose one and click Save.`, true);
+  } catch (err) { say('stdMsg', err.message); }
+});
+$('#stdSave').addEventListener('click', async () => {
+  say('stdMsg', 'Saving…', true);
+  try { await api('/api/import/template', { id: $('#stdPick').value }); ST = await api('/api/status'); renderStd(); say('stdMsg', 'Saved.', true); }
+  catch (err) { say('stdMsg', err.message); }
+});
+
+/* ---- AI recipe reader */
+function renderAi() {
+  const a = ST.ai, f = $('#ai').elements;
+  f.provider.value = a.provider || '';
+  f.model.value = ST.settings.ai_model || ''; f.endpoint.value = ST.settings.ai_endpoint || ''; f.apiKey.value = '';
+  aiFields();
+}
+function aiFields() {
+  const f = $('#ai').elements, p = f.provider.value, info = ST.ai.providers[p];
+  $('#aiFields').hidden = !p;
+  $('#aiTest').hidden = !p;
+  $('#aiForget').hidden = !(info && info.hasKey);
+  if (!info) return;
+  f.model.placeholder = info.model; f.endpoint.placeholder = info.endpoint;
+  f.apiKey.placeholder = info.hasKey ? 'A key is saved. Leave empty to keep it.' : 'Paste your API key';
+  $('#aiKeyNote').textContent = 'Get one at ' + info.keys + '.';
+  $('#aiEpNote').textContent = p === 'copilot' ? 'GitHub Models by default. For Azure OpenAI, paste your deployment’s chat completions URL (with api-version).' : 'Leave empty for the default.';
+}
+$('#ai').elements.provider.addEventListener('change', aiFields);
+$('#ai').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target.elements;
+  if (f.provider.value && !f.apiKey.value && !ST.ai.providers[f.provider.value].hasKey) return say('aiMsg', 'Paste your API key first.');
+  try {
+    const r = await api('/api/ai', { provider: f.provider.value, model: f.model.value, endpoint: f.endpoint.value, apiKey: f.apiKey.value });
+    ST.ai = r.ai; ST.settings.ai_model = f.model.value; ST.settings.ai_endpoint = f.endpoint.value; renderAi();
+    say('aiMsg', f.provider.value ? 'Saved. Click Test to check the key.' : 'AI reader turned off.', true);
+  } catch (err) { say('aiMsg', err.message); }
+});
+$('#aiTest').addEventListener('click', async () => {
+  say('aiMsg', 'Asking the provider…', true);
+  try { const r = await api('/api/ai/test', {}); say('aiMsg', r.ok ? 'It answered. The AI reader is ready.' : r.error, r.ok); }
+  catch (err) { say('aiMsg', err.message); }
+});
+$('#aiForget').addEventListener('click', async () => {
+  const p = $('#ai').elements.provider.value;
+  if (!confirm('Remove the saved API key for this provider?')) return;
+  try { const r = await api('/api/ai', { forget: p }); ST.ai = r.ai; renderAi(); say('aiMsg', 'Key removed.', true); }
+  catch (err) { say('aiMsg', err.message); }
+});
 load();
 </script>
 </body>

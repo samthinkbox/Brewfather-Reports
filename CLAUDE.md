@@ -93,15 +93,22 @@ adds the header, CSS and footer to every page.
   draft → `/api/import/upload` POSTs a **new** recipe (never PATCHes existing ones; refuses while questions are open).
   The page keeps the draft; the server re-validates it with `sanitize` every time.
 - Draft answers live on the draft: `match` = one of your ingredient names, `"new"`, or `"template"` (yeast);
-  `set_kg` / `set_g` = the user's own amounts; `mash_choice`. Paths like `hops.3.match` are set by the page.
+  `set_kg` / `set_g` / `others.N.set` = the user's own amounts; hop `charge` (1st/2nd/3rd dry hop) and `day`; `mash_choice`.
+  Paths like `hops.3.match` are set by the page.
+- **The owner's rule: follow the pasted recipe.** Same ingredients, additions, stages and times; only amounts change.
+  Never substitute automatically: `auto_match` uses one of your ingredients only when it is the same thing
+  (`same_malt`: token subset + category + colour; `same_hop`: variety + form, pellet = whole cone), otherwise `"new"`.
+  Swaps are only the user's choice from the row menu.
 - Standard ("template") recipe: setting `import_template_id` (chosen on Admin, saved to `data/import_template.json`),
   else the latest brew's recipe. Its batch size, efficiency, boil, equipment, mash, fermentation, folder, water, miscs
   and yeast amount are applied. Style fields are dropped.
-- Scaling: grain to the recipe's OG (or its efficiency, else 72%) at your size/efficiency; bittering (boil ≥ 30 min, or the
-  longest boil) to the stated IBU (or IBU calculated from the original) with your alphas; late hops by volume × form strength.
-- Matching: malts by category + tokens, crystal/roast by colour, usage as tie-break; hops by variety (`hop_variety`,
-  HopDatabase aliases); yeasts by strain code then `YEAST_FAMILIES`. Substitutes: aroma cosine (HopDatabase), or the
-  owner's usual bittering hops for bittering-only hops.
+- Scaling: every hop and other addition × (your batch ÷ recipe batch); grain × the factor that reaches the recipe's OG
+  (or its efficiency, else 72%) at your size and efficiency. Hop times stay as written (warning if longer than your boil).
+  Option `ibu: "match"` rescales only the bittering additions to the stated IBU. A hop the user swapped is adjusted by
+  alpha (bittering) or strength (cryo = 2×). Recipe "others" become Brewfather miscs, scaled; water salts and priming are not added.
+- Yeast: strain code, then `YEAST_FAMILIES` (asked as a question). Swap menus offer aroma-similar hops (HopDatabase
+  cosine) and the owner's usual bittering hops.
+- Test recipe: Craft Beer & Brewing "Readers' Choice WCIPA" (19 L, whole-cone, hopback, "each", ml AQB, numbered dry hops).
 - AI reader is opt-in (`ai_provider` setting). Endpoints must be https (or http://localhost). Default model names will age;
   they're editable on the Admin page. The connectors were checked against a fake local server, not the real providers.
 - Tests: there is no suite; sample recipes (BYO-style imperial, BeerSmith printout, NZ metric prose, web table) were used.

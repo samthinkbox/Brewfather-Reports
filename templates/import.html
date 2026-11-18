@@ -84,6 +84,13 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space:
 td .src { font-size: 12px; color: var(--muted); max-width: 260px; overflow-wrap: anywhere; }
 td select { max-width: 240px; }
 td.arrow { color: var(--muted); padding: 0 2px; }
+td .sc b { font-size: 14px; }
+td .chg { font-size: 12px; color: var(--muted); }
+td .chg.up { color: var(--good); }
+input.ed { border-color: transparent; background: transparent; }
+input.ed:hover, input.ed:focus { border-color: var(--border); background: var(--page); }
+td select.as { font-size: 12px; padding: 2px 4px; margin-top: 3px; max-width: 260px; color: var(--ink-2); }
+.yours { font-size: 11px; color: var(--accent); }
 .badge { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); margin-left: 4px; white-space: nowrap; }
 .badge.new { border-color: var(--accent); color: var(--accent); }
 .x { border: 0; background: none; color: var(--muted); padding: 2px 6px; font-size: 16px; line-height: 1; }
@@ -162,8 +169,10 @@ svg text { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; }
       <div class="tbl-wrap"><table id="malts"></table></div>
       <h3 style="margin-top:18px">Hops</h3>
       <div class="tbl-wrap"><table id="hops"></table></div>
-      <p class="note">Bittering is scaled to the recipe's IBU with your hops' alpha acids. Whirlpool and dry hops keep the same grams per litre
-        (cryo and lupulin count as double strength). Type in a "Yours" amount to set it yourself.</p>
+      <h3 style="margin-top:18px" id="othersTitle">Other additions</h3>
+      <div class="tbl-wrap"><table id="othersTbl"></table></div>
+      <p class="note">The recipe is followed as written: the same ingredients, additions and times, with each amount scaled.
+        Click <b>edit</b> to set an amount yourself, or use the menu under an ingredient to swap it for one of yours.</p>
       <h3 style="margin-top:18px">Yeast</h3>
       <div class="tbl-wrap"><table id="yeast"></table></div>
 
@@ -173,7 +182,7 @@ svg text { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; }
       <div class="grid2" style="margin-top:18px">
         <div><h3 id="flavTitle">Hop flavour</h3><div id="flav"></div></div>
         <div><h3>Hop bags (100 g)</h3><div class="tbl-wrap"><table id="bags"></table></div>
-          <div id="others"></div></div>
+          <div id="notAdded"></div></div>
       </div>
       <details style="margin-top:14px"><summary>Notes that will go in the recipe</summary><pre class="prompt" id="notes"></pre></details>
 
@@ -309,44 +318,71 @@ function renderReview() {
     tile('IBU', fmt(v.ibu, 0), v.src.ibu ? `${fmt(v.src.ibu, 0)} (calc. ${fmt(v.src.ibuCalc, 0)})` : `calc. ${fmt(v.src.ibuCalc, 0)}`) +
     tile('Efficiency', `${fmt(v.eff)}%`, v.src.eff ? `${fmt(v.src.eff)}%` : 'not given') +
     tile('Colour', `${fmt(v.ebc, 0)} EBC`, '');
-  $('#scaleNote').textContent = `Read by ${d.reader === 'rules' ? 'the built-in reader' : d.reader}. Volume factor ×${fmt(v.factor, 3)}. ${fmt(v.kg, 2)} kg of grain, ${fmt(v.dryGpl)} g/L dry hop, ${fmt(v.aromaGpl)} g/L whirlpool. Brewfather recalculates the figures when you open the recipe.`;
+  $('#scaleNote').innerHTML = `<b>Hops and additions ×${fmt(v.factor, 2)}</b> (${fmt(v.size, 0)} L ÷ ${fmt(v.srcL || v.size, 1)} L). ` +
+    `<b>Grain ×${fmt(v.grainFactor, 2)}</b>: ×${fmt(v.factor, 2)} for volume` + (Math.abs((v.effFactor || 1) - 1) >= 0.005 ? ` and ×${fmt(v.effFactor, 2)} so your ${fmt(v.eff)}% efficiency still reaches the recipe's gravity (it assumes ${fmt(v.srcEff)}%)` : '') + `. ` +
+    `Read by ${esc(d.reader === 'rules' ? 'the built-in reader' : d.reader)}. Brewfather recalculates the figures when you open the recipe.`;
   const flag = (title, items) => items && items.length ? `<div class="banner"><b>${title}</b><ul class="list">${items.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
   $('#flags').innerHTML = flag('Check these', v.warnings) + flag('Assumed', v.assumptions) +
     (S.applied.length ? `<details style="margin-top:10px"><summary>Answered for you (${S.applied.length})</summary><ul class="list">${S.applied.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '') +
     (d.unparsed && d.unparsed.length ? flag('Lines with amounts that weren’t understood (not used)', d.unparsed) : '');
 
-  $('#malts').innerHTML = '<thead><tr><th>In the recipe</th><th class="n">kg</th><th class="n">%</th><th></th><th>Yours</th><th class="n">kg</th><th class="n">%</th><th class="n">EBC</th><th></th></tr></thead><tbody>' +
+  const chg = (now, was, unit, dp) => {
+    if (was == null || now == null) return '';
+    const diff = now - was;
+    return `<span class="chg${diff > 0 ? ' up' : ''}">${diff > 0 ? '+' : diff < 0 ? '−' : '±'}${fmt(Math.abs(diff), dp)} ${unit}</span>`;
+  };
+  const scaled = (path, val, unit, dp, isSet) => isSet
+    ? `<input type="number" step="any" min="0" style="width:76px" value="${val}" data-p="${path}" aria-label="Your amount"> ${unit}<div><button class="link" type="button" data-unset="${path}" style="font-size:12px">use scaled</button></div>`
+    : `<span class="sc"><b>${fmt(val, dp)} ${unit}</b> <button class="link" type="button" data-edit="${path}" data-val="${val}" style="font-size:12px">edit</button></span>`;
+  const asSelect = (path, cur, writtenLabel, same, swaps) => {
+    const o = [opt('new', writtenLabel, cur)];
+    same.forEach(n => o.push(opt(n, `Your ${n} (same)`, cur)));
+    const sw = swaps.filter(n => !same.includes(n));
+    if (sw.length) o.push(`<optgroup label="Swap for one of yours">${sw.map(n => opt(n, n, cur)).join('')}</optgroup>`);
+    return `<select class="as" data-p="${path}" aria-label="Use as">${o.join('')}</select>`;
+  };
+
+  $('#malts').innerHTML = '<thead><tr><th>Malt</th><th class="n">Recipe</th><th class="n">Scaled</th><th class="n">Change</th><th class="n">%</th><th class="n">EBC</th><th></th></tr></thead><tbody>' +
     v.malts.map(m => {
-      const dm = d.malts[m.i], cur = dm.match || '';
-      const ch = m.choices.slice();
-      if (dm.match && dm.match !== 'new' && !ch.includes(dm.match)) ch.unshift(dm.match);
-      return `<tr><td><div>${esc(m.src)}</div>${dm.raw && dm.raw !== m.src ? `<div class="src">${esc(dm.raw)}</div>` : ''}</td>
-        <td class="n"><input type="number" step="0.01" min="0" value="${dm.kg ?? ''}" data-p="malts.${m.i}.kg" aria-label="Recipe kg"></td>
-        <td class="n">${m.srcPct != null ? fmt(m.srcPct) : ''}</td><td class="arrow">→</td>
-        <td><select data-p="malts.${m.i}.match" aria-label="Your malt">${cur ? '' : '<option value="">Choose…</option>'}${ch.map(n => opt(n, n, cur)).join('')}${opt('new', `Keep "${m.src}" (new)`, cur)}</select>${m.new ? '<span class="badge new">new</span>' : ''}</td>
-        <td class="n"><input type="number" step="0.01" min="0" placeholder="${fmt(m.kg, 2)}" value="${m.set ? m.kg : ''}" data-p="malts.${m.i}.set_kg" aria-label="Your kg"></td>
+      const dm = d.malts[m.i], cur = dm.match || 'new';
+      const same = m.same && dm.match ? [dm.match] : [];
+      const swaps = m.choices.concat(dm.match && dm.match !== 'new' && !m.same ? [dm.match] : []);
+      return `<tr><td><div>${esc(m.src)}${m.same ? '' : m.new ? '' : ' <span class="badge">swapped</span>'}</div>
+          ${asSelect(`malts.${m.i}.match`, cur, `As written: ${m.src}`, same, [...new Set(swaps)])}</td>
+        <td class="n"><input class="ed" type="number" step="0.01" min="0" style="width:72px" value="${dm.kg ?? ''}" data-p="malts.${m.i}.kg" aria-label="Recipe kg"> kg</td>
+        <td class="n">${scaled(`malts.${m.i}.set_kg`, m.kg, 'kg', 2, m.set)}</td>
+        <td class="n">${chg(m.kg, m.srcKg, 'kg', 2)}</td>
         <td class="n">${fmt(m.pct)}</td><td class="n">${fmt(m.ebc, 0)}</td>
         <td><button class="x" type="button" data-del="malts.${m.i}" aria-label="Remove ${esc(m.src)}">×</button></td></tr>`;
     }).join('') + '</tbody>';
 
-  $('#hops').innerHTML = '<thead><tr><th>In the recipe</th><th class="n">g</th><th class="n">α %</th><th>When</th><th></th><th>Yours</th><th class="n">g</th><th class="n">α %</th><th class="n">IBU</th><th></th></tr></thead><tbody>' +
+  $('#hops').innerHTML = '<thead><tr><th>Hop</th><th>When</th><th class="n">Recipe</th><th class="n">Scaled</th><th class="n">Change</th><th class="n">IBU</th><th></th></tr></thead><tbody>' +
     v.hops.map(h => {
-      const dh = d.hops[h.i], cur = dh.match || '';
-      let ch = h.choices.concat(h.subs, h.bitter ? (S.view.bittering || []) : []);
-      if (dh.match && dh.match !== 'new') ch.unshift(dh.match);
-      ch = [...new Set(ch)];
+      const dh = d.hops[h.i], cur = dh.match || 'new';
+      const same = h.choices || [];
+      const swaps = (h.subs || []).concat(h.bitter ? (S.view.bittering || []) : [], dh.match && dh.match !== 'new' && !same.includes(dh.match) ? [dh.match] : []);
+      const form = dh.form && dh.form !== 'pellet' ? ` <span class="badge">${esc(dh.form === 'leaf' ? 'whole cone' : dh.form)}</span>` : '';
       const when = `<select data-p="hops.${h.i}.use" aria-label="When">${USES.map(([k, l]) => opt(k, l, dh.use || '')).join('')}</select>
-        ${dh.use === 'Dry Hop' ? `day <input type="number" min="0" max="30" style="width:56px" value="${dh.day ?? ''}" placeholder="${h.day ?? ''}" data-p="hops.${h.i}.day" aria-label="Dry hop day">`
+        ${dh.use === 'Dry Hop' ? `day <input type="number" min="0" max="30" style="width:56px" value="${dh.day ?? ''}" placeholder="${h.day ?? ''}" data-p="hops.${h.i}.day" aria-label="Dry hop day">${dh.charge ? ` <span class="muted" style="font-size:12px">#${dh.charge}</span>` : ''}`
           : dh.use === 'Boil' || dh.use === 'Mash' ? `<input type="number" min="0" max="240" style="width:62px" value="${dh.time ?? ''}" data-p="hops.${h.i}.time" aria-label="Minutes"> min` : ''}`;
-      return `<tr><td><div>${esc(h.src)}</div><div class="src">${esc(dh.raw && dh.raw !== h.src ? dh.raw : '')}</div></td>
-        <td class="n"><input type="number" step="0.1" min="0" style="width:70px" value="${dh.g ?? ''}" data-p="hops.${h.i}.g" aria-label="Recipe grams"></td>
-        <td class="n"><input type="number" step="0.1" min="0" style="width:62px" value="${dh.alpha ?? ''}" data-p="hops.${h.i}.alpha" aria-label="Recipe alpha"></td>
-        <td style="white-space:nowrap">${when}</td><td class="arrow">→</td>
-        <td><select data-p="hops.${h.i}.match" aria-label="Your hop">${cur ? '' : '<option value="">Choose…</option>'}${ch.map(n => opt(n, n, cur)).join('')}${opt('new', `Keep ${h.src} (new)`, cur)}</select>${h.new ? '<span class="badge new">new</span>' : ''}${h.bitter ? '<span class="badge">bittering</span>' : ''}</td>
-        <td class="n"><input type="number" step="1" min="0" style="width:70px" placeholder="${fmt(h.g, 0)}" value="${h.set ? h.g : ''}" data-p="hops.${h.i}.set_g" aria-label="Your grams"></td>
-        <td class="n">${fmt(h.alpha)}</td><td class="n">${fmt(h.ibu)}</td>
+      return `<tr><td><div>${esc(h.src)}${form}${h.swapped ? ' <span class="badge">swapped</span>' : ''}</div>
+          ${asSelect(`hops.${h.i}.match`, cur, `As written: ${h.src}${h.new ? '' : ''}`, same, [...new Set(swaps)])}
+          <div class="src">α ${fmt(h.alpha)}%${h.swapped ? ` · ${esc(h.name)}` : ''}</div></td>
+        <td style="white-space:nowrap">${when}</td>
+        <td class="n"><input class="ed" type="number" step="0.1" min="0" style="width:66px" value="${dh.g ?? ''}" data-p="hops.${h.i}.g" aria-label="Recipe grams"> g</td>
+        <td class="n">${scaled(`hops.${h.i}.set_g`, h.g, 'g', 0, h.set)}</td>
+        <td class="n">${chg(h.g, h.srcG, 'g', 0)}</td>
+        <td class="n">${fmt(h.ibu)}</td>
         <td><button class="x" type="button" data-del="hops.${h.i}" aria-label="Remove ${esc(h.src)}">×</button></td></tr>`;
     }).join('') + '</tbody>';
+
+  const added = v.others.filter(o => o.amount != null);
+  $('#othersTitle').hidden = $('#othersTbl').hidden = !added.length;
+  $('#othersTbl').innerHTML = '<thead><tr><th>Addition</th><th>When</th><th class="n">Recipe</th><th class="n">Scaled</th><th></th></tr></thead><tbody>' +
+    added.map(o => `<tr><td>${esc(o.name)}</td><td>${esc(o.use)}${o.time != null ? ` ${fmt(o.time, 0)} min` : ''}</td>
+      <td class="n">${fmt(o.src, 2)} ${esc(o.unit || '')}</td>
+      <td class="n">${scaled(`others.${o.i}.set`, o.amount, esc(o.unit || ''), 2, o.set)}</td>
+      <td><button class="x" type="button" data-del="others.${o.i}" aria-label="Remove ${esc(o.name)}">×</button></td></tr>`).join('') + '</tbody>';
 
   const y = v.yeast, dy = d.yeasts[0];
   const ycur = dy ? (dy.match || '') : 'template';
@@ -358,7 +394,7 @@ function renderReview() {
   const std = S.info.standards;
   $('#optsBox').innerHTML = `
     <label class="f"><span>Water</span><select data-o="water">${opt('template', `Same as my standard (${std.water || 'template'})`, water)}${opt('IPA', 'West Coast IPA: salts for SO4 275, Cl 50', water)}${opt('NEIPA', 'NEIPA / hazy: salts for SO4 100, Cl 175', water)}${opt('Pale', 'Pale ale / XPA: salts for SO4 175, Cl 70', water)}</select></label>
-    <label class="f"><span>Bitterness</span><select data-o="ibu">${opt('recipe', 'Match the recipe’s stated IBU', S.opts.ibu || 'recipe')}${opt('calc', 'Match the IBU calculated from its hops', S.opts.ibu || 'recipe')}</select></label>
+    <label class="f"><span>Bitterness</span><select data-o="ibu">${opt('keep', 'Scale the hops as written', S.opts.ibu || 'keep')}${v.src.ibu ? opt('match', `Adjust bittering to hit the recipe's ${fmt(v.src.ibu, 0)} IBU`, S.opts.ibu || 'keep') : ''}</select></label>
     <label class="f"><span>Hop amounts</span><select data-o="round">${opt('1', 'Round to 1 g', String(S.opts.round || 1))}${opt('5', 'Round to 5 g', String(S.opts.round || 1))}</select></label>
     <label class="f"><span>Brewfather folder</span><select data-o="folder">${std.folder ? opt('template', `Same as my standard (${std.folder})`, S.opts.folder || 'template') : opt('template', 'No folder', 'template')}${std.folder ? opt('none', 'No folder', S.opts.folder || 'template') : ''}</select></label>
     ${d.mash_c ? `<label class="f"><span>Mash</span><select data-p="mash_choice">${opt('standard', `My standard (${(v.mash[0] || [])[0] ?? '–'} °C first step)`, d.mash_choice || 'standard')}${opt('recipe', `The recipe's ${fmt(d.mash_c, 1)} °C`, d.mash_choice || 'standard')}</select></label>` : ''}`;
@@ -372,7 +408,8 @@ function renderReview() {
   $('#flav').innerHTML = v.flavour ? HopRadar.inline(v.flavour) + (v.flavour.missing.length ? `<p class="note">No flavour data for ${esc(v.flavour.missing.join(', '))}.</p>` : '') : '<p class="note">No whirlpool or dry hops with flavour data.</p>';
   $('#bags').innerHTML = '<thead><tr><th>Hop</th><th class="n">Total</th><th class="n">Bags</th></tr></thead><tbody>' +
     v.bags.map(b => `<tr><td>${esc(b.name)}</td><td class="n">${fmt(b.g, 0)} g</td><td class="n">${b.bags}</td></tr>`).join('') + '</tbody>';
-  $('#others').innerHTML = v.others.length ? `<h3 style="margin-top:14px">Not added (add them in Brewfather if you want them)</h3><ul class="list">${v.others.map(o => `<li>${esc(o)}</li>`).join('')}</ul>` : '';
+  const skipped = v.others.filter(o => o.amount == null);
+  $('#notAdded').innerHTML = skipped.length ? `<h3 style="margin-top:14px">Not added</h3><ul class="list">${skipped.map(o => `<li>${esc(o.name)} <span class="muted">(${esc(o.why)})</span></li>`).join('')}</ul>` : '';
   $('#notes').textContent = v.notes;
 }
 
@@ -407,10 +444,20 @@ document.addEventListener('click', e => {
     setPath(q.field, val);
     return check();
   }
+  const ed = e.target.closest('[data-edit]');
+  if (ed) {
+    setPath(ed.dataset.edit, parseFloat(ed.dataset.val));
+    return check();
+  }
+  const un = e.target.closest('[data-unset]');
+  if (un) {
+    setPath(un.dataset.unset, null);
+    return check();
+  }
   const del = e.target.closest('[data-del]');
   if (del) {
     const [list, i] = del.dataset.del.split('.');
-    if (S.draft[list].length <= 1 && !S.draft[list === 'malts' ? 'hops' : 'malts'].length) return;
+    if (list !== 'others' && S.draft[list].length <= 1 && !S.draft[list === 'malts' ? 'hops' : 'malts'].length) return;
     S.draft[list].splice(+i, 1);
     return check();
   }

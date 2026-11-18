@@ -61,7 +61,7 @@ STAGE_RULES = [
     ("Dry Hop", re.compile(r"\b(dry[- ]?hop\w*|dh\b|keg[- ]?hop\w*|biotrans\w*|during fermentation|high krausen|in the fermenter|fermenter)", re.I)),
     ("First Wort", re.compile(r"\b(first[- ]wort|fwh)\b", re.I)),
     ("Mash", re.compile(r"\bmash hop", re.I)),
-    ("Aroma", re.compile(r"\b(whirlpool|hop ?stand|flame[- ]?out|knock[- ]?out|steep|at end of boil|end of boil|after (?:the )?boil|(?<![\d.])0(?:\.0)? min(?:ute)?s?\b)", re.I)),
+    ("Aroma", re.compile(r"\b(whirlpool|hop ?back|hop ?stand|flame[- ]?out|knock[- ]?out|steep|at end of boil|end of boil|after (?:the )?boil|(?<![\d.])0(?:\.0)? min(?:ute)?s?\b)", re.I)),
 ]
 
 
@@ -305,8 +305,62 @@ def read_hop(line, m, section):
             use = "Aroma" if time == 0 else "Boil"
     if use == "Boil" and re.search(r"\bdays?\b", line, re.I) and time is None:
         use = "Dry Hop"
+    charge = None
+    cm = re.search(r"\b(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th)\s+(?:dry[- ]?hop|charge|addition)", line, re.I)
+    if cm and use == "Dry Hop":
+        charge = ORDINALS[cm.group(1).lower()]
     return {"name": name.strip(), "g": None, "alpha": alpha, "form": form, "use": use,
-            "time": time, "day": day, "raw": line.strip()[:200]}
+            "time": time, "day": day, "charge": charge, "raw": line.strip()[:200]}
+
+
+ORDINALS = {"first": 1, "1st": 1, "second": 2, "2nd": 2, "third": 3, "3rd": 3, "fourth": 4, "4th": 4, "fifth": 5, "5th": 5}
+OTHER_AMT = re.compile(NUM + r"\s*(ml|millilitres?|milliliters?|l|litres?|liters?|tsp|teaspoons?|tbsp|tablespoons?|tablets?|tabs?|"
+                       r"cups?|kg|g|grams?|oz|ounces?|lbs?|pounds?|drops?|capsules?|packs?|pkgs?|each|items?)\b\.?", re.I)
+WATER_WORDS = re.compile(r"\b(gypsum|caso4|calcium chloride|cacl2?|epsom|mgso4|lactic|phosphoric|salt|chalk|baking soda|campden|"
+                         r"acid malt|sauergut)\b", re.I)
+UNIT_NAMES = {"millilitre": "ml", "milliliter": "ml", "millilitres": "ml", "milliliters": "ml", "litre": "l", "liter": "l",
+              "litres": "l", "liters": "l", "teaspoon": "tsp", "teaspoons": "tsp", "tablespoon": "tbsp", "tablespoons": "tbsp",
+              "tablet": "items", "tablets": "items", "tab": "items", "tabs": "items", "capsule": "items", "capsules": "items",
+              "each": "items", "item": "items", "drop": "items", "drops": "items", "pack": "pkg", "packs": "pkg", "pkgs": "pkg",
+              "gram": "g", "grams": "g", "cups": "cup"}
+
+
+def other_item(line, section=None):
+    """A non-malt, non-hop addition with its amount, unit and when it goes in (for a Brewfather misc)."""
+    amount, unit = None, None
+    m = OTHER_AMT.search(line)
+    if m:
+        amount, u = to_num(m.group(1)), m.group(2).lower().rstrip(".")
+        unit = UNIT_NAMES.get(u, u)
+        if unit in ("oz", "ounce", "ounces"):
+            amount, unit = (amount or 0) * OZ, "g"
+        elif unit in ("lb", "lbs", "pound", "pounds"):
+            amount, unit = (amount or 0) * LB * 1000, "g"
+        elif unit == "kg":
+            amount, unit = (amount or 0) * 1000, "g"
+        if unit == "g" and MASS_RX.search(line):
+            amount = best_mass(line)
+    use, time = "Boil", None
+    if re.search(r"priming|bottl|carbonat|keg(?:ging)?\b", line, re.I):
+        use = "Bottling"
+    elif re.search(r"dry[- ]?hop|ferment|primary|secondary|krausen|days?\b", line, re.I) or section == "dryhop":
+        use = "Primary"
+    elif re.search(r"\bmash\b", line, re.I):
+        use = "Mash"
+    elif re.search(r"whirlpool|flame[- ]?out|knock[- ]?out|hop ?stand", line, re.I):
+        use = "Flameout"
+    tm = re.search(r"(\d{1,3})\s*min", line, re.I)
+    if tm and use == "Boil":
+        time = int(tm.group(1))
+    name = strip_amounts(OTHER_AMT.sub(" ", line, count=1))
+    name = re.sub(r"\s*(?:\bat\b|@).*$", "", name, flags=re.I).strip(" -:;,.")
+    if name.count("(") > name.count(")"):
+        name += ")"
+    name = re.sub(r"\s*\((?:\d+\s*min[^)]*|for [^)]*|optional)\)", "", name, flags=re.I).strip(" -:;,.")
+    cm =re.search(r"\b(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th)\s+(?:dry[- ]?hop|charge|addition)", line, re.I)
+    return {"name": (name or strip_amounts(line))[:120], "amount": round(amount, 2) if amount else None, "unit": unit, "use": use,
+            "time": time, "water": bool(WATER_WORDS.search(line)), "skip": use == "Bottling", "raw": line.strip()[:200],
+            "charge": ORDINALS[cm.group(1).lower()] if cm else None}
 
 
 HOP_CONTEXT = re.compile(r"\b(min|mins|minutes|boil|whirlpool|dry|hops?|aa|alpha|flame\w*|knock\w*|days?|hop ?stand|fwh)\b|@|%\s*a", re.I)
@@ -316,6 +370,17 @@ def read_hops(line, hop_rx, section):
     """One or more hops from a line: "Dry hop: 60 g Nelson Sauvin and 40 g Motueka on day 4" is two."""
     ms = masses(line)
     names = list(hop_rx.finditer(line))
+    if len(names) >= 2 and re.search(r"\beach\b", line, re.I):
+        # "2.8 oz (79 g) each Mosaic Cryo & Simcoe Cryo": the same weight of every hop named
+        g = round(best_mass(line), 1)
+        out = []
+        for i, nm in enumerate(names):
+            nxt = names[i + 1].start() if i + 1 < len(names) else len(line)
+            own = line[nm.start():nxt]
+            h = read_hop(own + " " + line[:names[0].start()] + " " + line[names[-1].end():], nm, section)
+            h["g"], h["raw"] = g, line.strip()[:200]
+            out.append(h)
+        return out
     if len(ms) < 2 or len(names) < 2:
         h = read_hop(line, names[0], section)
         h["g"] = round(best_mass(line), 1)
@@ -487,9 +552,12 @@ def parse(text, hop_names=()):
         if section == "yeast" and grams is None and YEAST_SECTION_OK.search(line) and len(line) < 120:
             d["yeasts"].append({"name": strip_amounts(line)[:120], "raw": line[:200]})
             continue
+        if grams is None and hm and section in ("hops", "whirlpool", "dryhop") and OTHER_AMT.search(line):
+            d["others"].append(other_item(line, section))  # liquid hop products such as "0.6 ml Simcoe AQB"
+            continue
         if grams is None:
             if MISC_WORDS.search(line) and len(line) <= 80 and section != "method":
-                d["others"].append({"name": strip_amounts(line)[:120], "raw": line[:200]})
+                d["others"].append(other_item(line, section))
             elif section == "method" or len(line) > 60 or not re.search(r"\d", line):
                 notes.append(line)
             elif section == "malts" and PCT_RX.search(line) and is_malt_word:
@@ -499,7 +567,7 @@ def parse(text, hop_names=()):
                 notes.append(line)
             continue
         if MISC_WORDS.search(line) and not (hm and section in ("hops", "whirlpool", "dryhop")) and not (is_malt_word and section == "malts"):
-            d["others"].append({"name": strip_amounts(line)[:120], "raw": line[:200]})
+            d["others"].append(other_item(line, section))
             continue
         hop_like = hm and (section in ("hops", "whirlpool", "dryhop") or HOP_CONTEXT.search(line)
                            or (grams < 500 and section != "malts")) and not (is_malt_word and (section == "malts" or grams >= 400))
@@ -517,7 +585,7 @@ def parse(text, hop_names=()):
             d["hops"].append(hop)
             continue
         if section == "other":
-            d["others"].append({"name": strip_amounts(line)[:120], "raw": line[:200]})
+            d["others"].append(other_item(line, section))
             continue
         d["unparsed"].append(line[:200])
     # name: the first short line that isn't a figure or heading
@@ -579,6 +647,7 @@ def from_json(obj):
             d["hops"].append({"name": _s(h["name"]), "g": _f(h.get("g"), 0, 100000), "alpha": _f(h.get("alpha"), 0, 30),
                               "form": form if form in ("pellet", "cryo", "leaf", "extract") else None,
                               "use": use, "time": _f(h.get("time"), 0, 240), "day": int(_f(h.get("day"), 0, 60) or 0) or None,
+                              "charge": int(_f(h.get("charge"), 1, 9) or 0) or None,
                               "raw": _s(h.get("raw"), 200) or _s(h["name"]), "match": _s(h.get("match"))})
     for y in (obj.get("yeasts") or [])[:5]:
         if isinstance(y, dict) and _s(y.get("name")):
@@ -586,9 +655,21 @@ def from_json(obj):
         elif isinstance(y, str) and y.strip():
             d["yeasts"].append({"name": _s(y), "raw": _s(y, 200)})
     for o in (obj.get("others") or [])[:30]:
-        name = _s(o.get("name") if isinstance(o, dict) else o)
+        if isinstance(o, str):
+            o = {"name": o}
+        name = _s(o.get("name")) if isinstance(o, dict) else None
         if name:
-            d["others"].append({"name": name, "raw": _s((o.get("raw") if isinstance(o, dict) else None) or name, 200)})
+            raw = _s(o.get("raw"), 200) or name
+            item = other_item(raw)
+            unit = str(o.get("unit") or "").lower()
+            item.update({"name": name, "raw": raw,
+                         "amount": _f(o.get("amount"), 0, 100000) if o.get("amount") is not None else item["amount"],
+                         "unit": unit if unit in ("g", "ml", "l", "tsp", "tbsp", "items", "pkg", "cup") else item["unit"],
+                         "use": o.get("use") if o.get("use") in ("Boil", "Mash", "Flameout", "Primary", "Secondary", "Bottling") else item["use"],
+                         "time": _f(o.get("time"), 0, 240), "set": _f(o.get("set"), 0, 100000)})
+            if "skip" in o:
+                item["skip"] = bool(o.get("skip"))
+            d["others"].append(item)
     if not d["malts"] and not d["hops"]:
         raise ValueError("No malts or hops were found in the reply.")
     return d
@@ -607,9 +688,11 @@ SCHEMA_TEXT = """{
   "hops": [{"name": "variety", "g": grams, "alpha": alpha acid % or null, "form": "pellet|cryo|leaf|extract" or null,
             "use": "Boil|First Wort|Mash|Aroma|Dry Hop" (Aroma = whirlpool, hop stand or flameout),
             "time": minutes (boil or whirlpool) or null, "day": dry hop day of fermentation or null,
+            "charge": 1, 2, 3... for "first/second/third dry hop" when no day is given, else null,
             "raw": "the line as written", "match": "exact name from MY HOPS of the same variety and form, or null"}],
   "yeasts": [{"name": "...", "raw": "...", "match": "exact name from MY YEASTS that is the same strain or a close equivalent, or null"}],
-  "others": [{"name": "salts, finings, nutrients, fruit, spices and other additions", "raw": "..."}],
+  "others": [{"name": "finings, nutrients, liquid hop products, fruit, spices, salts and other additions", "amount": number or null,
+              "unit": "g|ml|tsp|tbsp|items|pkg", "use": "Mash|Boil|Flameout|Primary|Bottling", "time": boil minutes or null, "raw": "..."}],
   "notes": "the method, mash, fermentation and packaging instructions, shortened to the useful facts",
   "warnings": ["anything unclear or assumed"]
 }"""

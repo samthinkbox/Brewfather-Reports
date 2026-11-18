@@ -130,6 +130,7 @@ MALT_CATS = [
     ("crystal", r"crystal|caramel|\bcara|special b|medium crystal|dark crystal"),
     ("sugar", r"dextrose|corn sugar|glucose|sucrose|table sugar|candi|cane sugar|honey(?! malt)|treacle|molasses|maple"),
     ("lactose", r"lactose"),
+    ("adjunct", r"\brice\b|maize|\bcorn\b(?! sugar)|grits"),
     ("extract", r"\b(dme|lme|malt extract|spraymalt)\b"),
     ("oats", r"\boat|avena"),
     ("wheat", r"wheat|weizen"),
@@ -145,7 +146,7 @@ GUESS = {  # (Brewfather type, potential, colour SRM) for a malt you don't have
     "base": ("Grain", 1.037, 2.5), "pils": ("Grain", 1.037, 1.7), "munich": ("Grain", 1.035, 9), "vienna": ("Grain", 1.036, 3.5),
     "wheat": ("Grain", 1.038, 2), "oats": ("Adjunct", 1.033, 1), "rye": ("Grain", 1.035, 3), "crystal": ("Grain", 1.034, 40),
     "dextrin": ("Grain", 1.033, 1.5), "acid": ("Grain", 1.027, 2), "choc": ("Grain", 1.028, 350), "roast": ("Grain", 1.025, 500),
-    "sugar": ("Sugar", 1.046, 0), "lactose": ("Sugar", 1.035, 0), "extract": ("Dry Extract", 1.044, 4), "biscuit": ("Grain", 1.035, 25),
+    "sugar": ("Sugar", 1.046, 0), "lactose": ("Sugar", 1.035, 0), "adjunct": ("Adjunct", 1.040, 0.7), "extract": ("Dry Extract", 1.044, 4), "biscuit": ("Grain", 1.035, 25),
     None: ("Grain", 1.036, 3),
 }
 
@@ -271,23 +272,44 @@ def yeast_choices(y, ctx):
     return exact + fam
 
 
+def same_malt(m, cand):
+    """True when one of your fermentables is the same malt as the recipe's (not just a similar one)."""
+    a, b = tokens(m.get("name")), tokens(cand.get("name"))
+    if not a or not b or not (a <= b or b <= a):
+        return False
+    ca, cb = malt_cat(m.get("name")), malt_cat((cand.get("name") or "") + " " + (cand.get("grainCategory") or ""))
+    if ca != cb:
+        return False
+    c1, c2 = m.get("color_srm"), cand.get("color")
+    return c1 is None or c2 is None or abs(math.log((c1 + 1) / (c2 + 1))) < 0.25
+
+
+def same_hop(h, name, ctx):
+    """Your hop of the same variety and strength (pellet and whole cone count as the same; cryo doesn't)."""
+    o = ctx["lib"]["hops"][name]
+    mine = "cryo" if br.hop_form(o) == "Cryo / lupulin" else ("extract" if br.hop_form(o) == "Extract / oil" else "pellet")
+    want = src_form(h)
+    want = "pellet" if want == "leaf" else want
+    return hop_key(name, ctx) == hop_key(h["name"], ctx) and mine == want
+
+
 def auto_match(d, ctx):
-    """Fill each ingredient's match when it's clear. Leaves anything doubtful as None for a question."""
+    """Follow the recipe: each ingredient is the recipe's own ("new"), unless you have the very same one,
+    in which case yours is used for its data (colour, potential, alpha acid). Nothing is swapped for something else."""
     lib = ctx["lib"]
+    used = ctx["uses"]
     for m in d["malts"]:
         if m.get("match") and m["match"] != "new" and m["match"] not in lib["fermentables"]:
             m["match"] = None
         if m.get("match") is None:
-            ch = malt_choices(m, ctx, 2)
-            if ch and ch[0][1] >= 0.8 and (len(ch) == 1 or ch[0][1] - ch[1][1] >= 0.08):
-                m["match"] = ch[0][0]
+            same = [n for n, _ in malt_choices(m, ctx, 8) if same_malt(m, lib["fermentables"][n])]
+            m["match"] = max(same, key=lambda n: used["fermentables"].get(n, 0)) if same else "new"
     for h in d["hops"]:
         if h.get("match") and h["match"] != "new" and h["match"] not in lib["hops"]:
             h["match"] = None
         if h.get("match") is None:
-            ch = hop_choices(h, ctx)
-            if ch:
-                h["match"] = ch[0]
+            same = [n for n in hop_choices(h, ctx) if same_hop(h, n, ctx)]
+            h["match"] = max(same, key=lambda n: used["hops"].get(n, 0)) if same else "new"
     for y in d["yeasts"][:1]:
         if y.get("match") and y["match"] not in ("new", "template") and y["match"] not in lib["yeasts"]:
             y["match"] = None
@@ -296,6 +318,24 @@ def auto_match(d, ctx):
             if ch and ch[0][1] == "same strain":
                 y["match"] = ch[0][0]
     return d
+
+
+def std_dry_day(ctx):
+    t = ctx["template"] or {}
+    return next((h.get("day") for h in t.get("hops") or [] if h.get("use") == "Dry Hop" and h.get("day")), None) or 5
+
+
+def misc_type(name):
+    n = (name or "").lower()
+    if re.search(r"whirlfloc|irish moss|protafloc|biofine|gelatin|isinglass|silica|clarity|polyclar|finings?", n):
+        return "Fining"
+    if re.search(r"nutrient|servomyces|zinc|fermaid", n):
+        return "Other"
+    if re.search(r"gypsum|chloride|epsom|lactic|phosph|salt|chalk|bicarb|campden", n):
+        return "Water Agent"
+    if re.search(r"vanilla|cinnamon|coriander|pepper|ginger|spice|peel|zest|herb", n):
+        return "Spice"
+    return "Flavor"
 
 
 # ------------------------------------------------------------------ questions
@@ -329,14 +369,6 @@ def questions(d, ctx):
     for i, m in enumerate(d["malts"]):
         if not m.get("kg") and has_kg:
             qs.append(_q(f"mkg{i}", f"How much {m['name']}?", field=f"malts.{i}.kg", kind="number", unit="kg", detail=m.get("raw")))
-        if m.get("match") is None:
-            opts = []
-            for n, _ in malt_choices(m, ctx, 4):
-                col = ctx["lib"]["fermentables"][n].get("color")
-                opts.append({"label": n, "note": f"{col * 1.97:.0f} EBC" if col is not None else "", "set": {f"malts.{i}.match": n}})
-            opts.append({"label": f"Keep “{m['name']}” as a new ingredient", "set": {f"malts.{i}.match": "new"}})
-            qs.append(_q(f"malt{i}", f"Which of your malts is “{m['name']}”?", opts, detail=m.get("raw")))
-    asked = set()
     for i, h in enumerate(d["hops"]):
         if not h.get("g"):
             qs.append(_q(f"hg{i}", f"How much {h['name']}?", field=f"hops.{i}.g", kind="number", unit="g", detail=h.get("raw")))
@@ -346,28 +378,18 @@ def questions(d, ctx):
                 {"label": "Boil, 10 min", "set": {f"hops.{i}.use": "Boil", f"hops.{i}.time": 10}},
                 {"label": "Whirlpool", "set": {f"hops.{i}.use": "Aroma"}},
                 {"label": "Dry hop", "set": {f"hops.{i}.use": "Dry Hop"}}], detail=h.get("raw")))
-        key = hop_key(h["name"], ctx)
-        if h.get("match") is None and key not in asked:
-            asked.add(key)
-            same = [j for j, o in enumerate(d["hops"]) if o.get("match") is None and hop_key(o["name"], ctx) == key]
-            setall = lambda v: {f"hops.{j}.match": v for j in same}
-            var = br.hop_variety(h["name"])
-            keep = {"label": f"Keep {var} (a new ingredient for you)", "set": setall("new")}
-            subs = [{"label": f"Use your {n} instead", "note": f"aroma {round(sc * 100)}% similar", "set": setall(n)}
-                    for n, sc in similar_hops(h, ctx)]
-            only_bitter = all(d["hops"][j].get("use") in ("Boil", "First Wort") and (d["hops"][j].get("time") or 0) >= 30 for j in same)
-            if only_bitter and ctx["bittering"]:
-                opts = [{"label": f"Use your usual bittering hop, {n}", "note": "the IBU stays the same", "set": setall(n)}
-                        for n in ctx["bittering"]] + [keep]
-            else:
-                opts = [keep] + subs
-            qs.append(_q(f"hop{i}", f"You haven't used {var} before. Keep it or substitute?", opts,
-                         detail="Only used for bittering, so the variety matters little." if only_bitter else h.get("raw")))
-        if h.get("match") == "new" and not h.get("alpha") and h.get("use") in ("Boil", "First Wort", "Mash"):
-            a = ctx["alphas"].get(hop_key(h["name"], ctx))
-            qs.append(_q(f"ha{i}", f"What alpha acid is your {br.hop_variety(h['name'])}?",
-                         [{"label": f"{a:g}% (typical)", "set": {f"hops.{i}.alpha": a}}] if a else [],
-                         field=f"hops.{i}.alpha", kind="number", unit="%", detail="Used for bitterness."))
+    charged = [(i, h) for i, h in enumerate(d["hops"]) if h.get("use") == "Dry Hop" and h.get("charge") and not h.get("day")]
+    if charged:
+        n = max(h["charge"] for _, h in charged)
+        base = std_dry_day(ctx)
+
+        def days(first, step):
+            return {f"hops.{i}.day": first + (h["charge"] - 1) * step for i, h in charged}
+        spread = lambda first, step: ", ".join(str(first + k * step) for k in range(n))
+        opts = [{"label": f"Days {spread(3, 2)}", "set": days(3, 2)}, {"label": f"Days {spread(2, 2)}", "set": days(2, 2)},
+                {"label": f"All on day {base}, my usual", "set": days(base, 0)}]
+        qs.append(_q("dhdays", f"The recipe has {n} dry hop charges but doesn't say which days. When do they go in?", opts,
+                     detail="Day of fermentation. You can change each one in the review."))
     if d["yeasts"] and d["yeasts"][0].get("match") is None:
         y = d["yeasts"][0]
         opts = [{"label": n, "note": why, "set": {"yeasts.0.match": n}} for n, why in yeast_choices(y, ctx)[:3]]
@@ -444,6 +466,7 @@ def build(d, opts, ctx):
     stand_min = t.get("hopStandMinutes") or eq.get("whirlpoolTime") or 20
     stand_temp = t.get("avgWeightedHopstandTemp") or 80
     step = 5 if str(opts.get("round")) == "5" else 1
+    dry_day = std_dry_day(ctx)
     notes_out, warnings, assumptions = [], list(d.get("warnings") or []), []
 
     src_l = d.get("batch_l")
@@ -490,7 +513,9 @@ def build(d, opts, ctx):
         view_malts.append({"i": i, "src": m["name"], "srcKg": m.get("kg"), "srcPct": m.get("pct"), "name": o["name"], "kg": o["amount"],
                            "pct": round(o["amount"] / kg_total * 100, 1), "ebc": round((o.get("color") or 0) * 1.97, 1),
                            "new": not (m.get("match") and m["match"] != "new"), "set": m.get("set_kg") is not None,
-                           "choices": [n for n, _ in malt_choices(m, ctx, 5)]})
+                           "same": bool(m.get("match") in lib["fermentables"] and same_malt(m, lib["fermentables"][m["match"]])),
+                           "factor": round(o["amount"] / w, 3) if w else None,
+                           "choices": [n for n, _ in malt_choices(m, ctx, 6)]})
 
     # ---- yeast and FG
     tyeast = (t.get("yeasts") or [None])[0]
@@ -542,6 +567,7 @@ def build(d, opts, ctx):
         if use == "First Wort":
             s_time = src_boil
         g_src = h.get("g") or 0
+        swapped = bool(match and match != "new" and match in lib["hops"] and hop_key(match, ctx) != hop_key(h["name"], ctx))
         # bitterness of the original
         if use in ("Boil", "First Wort"):
             s_ibu = calc.tinseth(s_alpha, g_src, min(s_time, src_boil), src_og, src_l) * (1.1 if use == "First Wort" else 1)
@@ -550,38 +576,41 @@ def build(d, opts, ctx):
         else:
             s_ibu = 0
         bitter = use in ("Boil", "First Wort", "Mash") and s_time >= 30
-        if bitter:
-            g = g_src * f * s_alpha / our_alpha
-        else:
-            g = g_src * f * s_strength / strength
+        # Every addition is the recipe's amount x the volume factor. Only a hop you chose to swap in is adjusted:
+        # by alpha acid for bittering, by strength (cryo = double) for the rest.
+        g = g_src * f
+        if swapped and bitter:
+            g *= s_alpha / our_alpha
+        elif swapped or s_strength != strength:
+            g *= s_strength / strength
         hops.append({"i": i, "h": h, "obj": obj, "use": use, "time": s_time, "g": g, "bitter": bitter, "s_ibu": s_ibu,
-                     "alpha": our_alpha, "s_alpha": s_alpha, "strength": strength})
+                     "alpha": our_alpha, "s_alpha": s_alpha, "strength": strength, "factor": g / g_src if g_src else f,
+                     "swapped": swapped})
     if hops and not any(x["bitter"] for x in hops):
         boils = [x for x in hops if x["use"] in ("Boil", "First Wort")]
         if boils:
-            longest = max(boils, key=lambda x: x["time"])
-            longest["bitter"] = True
-            longest["g"] = (longest["h"].get("g") or 0) * f * longest["s_alpha"] / longest["alpha"]
+            max(boils, key=lambda x: x["time"])["bitter"] = True
 
     def ibu_of(x, g):
         if x["use"] in ("Boil", "First Wort"):
-            t_ = boil if x["use"] == "First Wort" else min(x["time"], boil)
+            t_ = boil if x["use"] == "First Wort" else x["time"]
             return calc.tinseth(x["alpha"], g, t_, og, size) * (1.1 if x["use"] == "First Wort" else 1)
         if x["use"] == "Aroma":
             return calc.tinseth(x["alpha"], g, 20, og, size, calc.WHIRLPOOL_FACTOR)
         return 0.0
     src_ibu_calc = sum(x["s_ibu"] for x in hops)
-    target_ibu = d.get("ibu") if (d.get("ibu") and opts.get("ibu") != "calc") else src_ibu_calc
-    others = sum(ibu_of(x, x["g"]) for x in hops if not x["bitter"])
-    bit = sum(ibu_of(x, x["g"]) for x in hops if x["bitter"])
-    if bit > 0 and target_ibu:
-        need = target_ibu - others
-        if need <= 0:
-            warnings.append("The late hops alone reach the recipe's IBU, so the bittering addition was kept small.")
-            need = bit * 0.25
-        for x in hops:
-            if x["bitter"]:
-                x["g"] *= need / bit
+    if opts.get("ibu") == "match" and d.get("ibu"):
+        others = sum(ibu_of(x, x["g"]) for x in hops if not x["bitter"])
+        bit = sum(ibu_of(x, x["g"]) for x in hops if x["bitter"])
+        if bit > 0:
+            need = d["ibu"] - others
+            if need <= 0:
+                warnings.append("The late hops alone reach the recipe's IBU, so the bittering addition was kept small.")
+                need = bit * 0.25
+            for x in hops:
+                if x["bitter"]:
+                    x["g"] *= need / bit
+                    x["factor"] = x["g"] / (x["h"].get("g") or 1)
     hops_out, view_hops = [], []
     for x in hops:
         h, obj = x["h"], x["obj"]
@@ -591,14 +620,14 @@ def build(d, opts, ctx):
         o = dict(obj)
         o.update({"amount": g, "use": x["use"], "ibu": round(ibu, 1), "actualTime": None})
         if x["use"] == "Dry Hop":
-            day = h.get("day") or next((hh.get("day") for hh in t.get("hops") or [] if hh.get("use") == "Dry Hop" and hh.get("day")), None) or 5
+            day = h.get("day") or dry_day
             o.update({"time": 3, "day": day, "timeUnit": "days", "temp": None})
         elif x["use"] == "Aroma":
             o.update({"time": stand_min, "temp": stand_temp, "day": None})
         elif x["use"] == "First Wort":
             o.update({"time": boil, "day": None, "temp": None})
         else:
-            o.update({"time": min(x["time"], boil) if x["use"] == "Boil" else x["time"], "day": None, "temp": None})
+            o.update({"time": x["time"], "day": None, "temp": None})
         hops_out.append({kk: v for kk, v in o.items() if v is not None})
         stage = br.hop_stage({"use": x["use"], "time": o.get("time")})
         view_hops.append({"i": x["i"], "src": h["name"], "srcG": h.get("g"), "srcAlpha": h.get("alpha"), "name": obj["name"],
@@ -606,11 +635,19 @@ def build(d, opts, ctx):
                           "day": o.get("day"), "ibu": round(ibu, 1), "stage": stage, "strength": x["strength"],
                           "ge": g * x["strength"], "gpl": round(g * x["strength"] / size, 2), "bitter": x["bitter"],
                           "new": not (h.get("match") and h["match"] != "new"), "set": h.get("set_g") is not None,
-                          "choices": hop_choices(h, ctx), "subs": [n for n, _ in similar_hops(h, ctx)]})
+                          "factor": round(x["factor"], 3), "swapped": x["swapped"], "srcForm": h.get("form"), "charge": h.get("charge"),
+                          "choices": [n for n in hop_choices(h, ctx) if same_hop(h, n, ctx)],
+                          "subs": [n for n, _ in similar_hops(h, ctx)] + [n for n in hop_choices(h, ctx) if not same_hop(h, n, ctx)]})
     ibu = sum(v["ibu"] for v in view_hops)
-    if any(x["time"] > boil for x in hops if x["use"] == "Boil"):
-        assumptions.append(f"Boil additions longer than your {boil:g} min boil start at the beginning of the boil; the bittering "
-                           "amount makes up the difference.")
+    longest = max([x["time"] for x in hops if x["use"] == "Boil"] + [0])
+    if longest > boil:
+        warnings.append(f"The recipe boils hops for up to {longest:g} min but your standard boil is {boil:g} min. The times are kept as "
+                        f"written: lengthen the boil to {longest:g} min in Brewfather, or shorten those additions.")
+    if any(src_form(x["h"]) == "leaf" for x in hops):
+        assumptions.append("Whole-cone hops: pellets of the same variety are used weight for weight.")
+    if opts.get("ibu") != "match" and d.get("ibu") and abs(ibu - d["ibu"]) >= 10:
+        assumptions.append(f"Hops are scaled exactly as written, which gives {ibu:.0f} IBU by Brewfather's method against the recipe's "
+                           f"{d['ibu']:g}. Choose “Adjust bittering” under Bitterness to aim for {d['ibu']:g}.")
 
     # ---- mash
     mash = copy.deepcopy(t.get("mash") or {"name": "Mash", "steps": [{"stepTemp": 66, "stepTime": 60, "type": "Temperature"}]})
@@ -618,6 +655,25 @@ def build(d, opts, ctx):
         mash["steps"][0]["stepTemp"] = d["mash_c"]
         mash["steps"][0]["displayStepTemp"] = d["mash_c"]
         mash["name"] = f"{mash.get('name') or 'Mash'} ({d['mash_c']:g} °C)"
+
+    # ---- the recipe's other additions (finings, liquid hop products, spices...), scaled like the hops
+    extra, view_others, not_added = [], [], []
+    for i, o in enumerate(d.get("others") or []):
+        if o.get("skip") or o.get("water") or not o.get("amount"):
+            why = "for bottling" if o.get("skip") else ("your water standards are used instead" if o.get("water") else "no amount given")
+            not_added.append(f"{o['name']} ({why})")
+            view_others.append({"i": i, "name": o["name"], "src": o.get("amount"), "unit": o.get("unit"), "amount": None, "use": o.get("use"),
+                                "why": why})
+            continue
+        amt = o["set"] if o.get("set") is not None else round(o["amount"] * f, 2 if o["amount"] * f < 10 else 1)
+        base = next((lib["miscs"][n] for n in lib["miscs"] if n.lower() == o["name"].lower()), None)
+        mo = calc.clean(base) if base else {"name": o["name"], "type": misc_type(o["name"])}
+        mo.update({"amount": amt, "unit": o.get("unit") or "g", "use": o.get("use") or "Boil"})
+        if o.get("time") is not None:
+            mo["time"] = o["time"]
+        extra.append(mo)
+        view_others.append({"i": i, "name": o["name"], "src": o["amount"], "unit": o.get("unit"), "amount": amt, "use": mo["use"],
+                            "time": o.get("time"), "set": o.get("set") is not None})
 
     # ---- water and other additions
     src_water = (t.get("water") or {}).get("source") or {}
@@ -653,6 +709,10 @@ def build(d, opts, ctx):
                 sal[m.get("name")] = round(sal.get(m.get("name"), 0) + (m.get("amount") or 0), 2)
         water_view = {"mode": "template", "title": "Same as your template", "salts": sal, "source": src_water.get("name")}
 
+    # the recipe's own additions replace your standard ones of the same kind (e.g. its Irish moss instead of your Whirlfloc)
+    kinds = {misc_type(m["name"]) for m in extra}
+    miscs = [m for m in miscs if m.get("type") == "Water Agent" or m.get("waterAdjustment") or misc_type(m.get("name")) not in kinds] + extra
+
     # ---- totals, flavour, bags
     color = calc.srm(pairs, size)
     dry = sum(v["ge"] for v in view_hops if v["use"] == "Dry Hop")
@@ -663,21 +723,23 @@ def build(d, opts, ctx):
         bags[v["name"]] = bags.get(v["name"], 0) + v["g"]
     bag_view = [{"name": n, "g": g, "bags": math.ceil(g / 100 - 1e-9)} for n, g in sorted(bags.items(), key=lambda x: -x[1])]
 
-    others_txt = "; ".join(o["name"] for o in d.get("others") or [])
+    others_txt = "; ".join(not_added)
     std = standards(ctx)
     name = (d.get("name") or "Imported recipe").strip()[:80]
     src_line = ", ".join(x for x in [f"{d['batch_l']:g} L" if d.get("batch_l") else None, f"OG {d['og']:.3f}" if d.get("og") else None,
                                      f"FG {d['fg']:.3f}" if d.get("fg") else None, f"{d['ibu']:g} IBU" if d.get("ibu") else None,
                                      f"{d['abv']:g}% ABV" if d.get("abv") else None,
                                      f"{d['efficiency']:g}% efficiency" if d.get("efficiency") else None] if x)
-    swaps = [f"{v['src']} → {v['name']}" for v in view_hops if br.hop_variety(v["src"]).lower() != v["variety"].lower()]
-    swaps += [f"{v['src']} → {v['name']}" for v in view_malts if not v["new"]]
+    swaps = [f"{v['src']} → {v['name']}" for v in view_hops if v["swapped"]]
+    swaps += [f"{v['src']} → {v['name']}" for v in view_malts if not v["new"] and not v["same"]]
+    charges = sorted({(v["charge"], v["day"]) for v in view_hops if v.get("charge")})
     notes = (f"Imported from a pasted recipe on {datetime.now():%d %b %Y} ({'read by ' + d.get('reader') if d.get('reader') not in (None, 'rules') else 'read and checked by hand'}).\n"
              f"Original: {src_line or 'no figures given'}.\n"
              f"Scaled to {size:g} L at {eff:g}% efficiency with {std['label']} as the template "
              f"(equipment, mash, fermentation{', water' if water_mode == 'template' else ''}).\n"
-             + (f"Your ingredients used: {'; '.join(swaps)}.\n" if swaps else "")
-             + (f"Not added (from the original, add them in Brewfather if you want them): {others_txt}.\n" if others_txt else "")
+             + (f"Swapped by you: {'; '.join(swaps)}.\n" if swaps else "")
+             + (f"Dry hop charges: {', '.join(f'#{c} on day {dd}' for c, dd in charges)}.\n" if charges else "")
+             + (f"Not added: {others_txt}.\n" if others_txt else "")
              + ("\nOriginal notes:\n" + d["notes"].strip() if (d.get("notes") or "").strip() else ""))[:6000]
 
     r = copy.deepcopy(t)
@@ -716,7 +778,8 @@ def build(d, opts, ctx):
                   "unit": yobj.get("unit"), "att": round(att * 100), "src": (y0 or {}).get("name"),
                   "choices": [n for n, _ in yeast_choices(y0, ctx)] if y0 else []},
         "mash": [[s.get("stepTemp"), s.get("stepTime")] for s in mash.get("steps") or []],
-        "water": water_view, "flavour": flavour, "bags": bag_view, "others": [o["name"] for o in d.get("others") or []],
+        "water": water_view, "flavour": flavour, "bags": bag_view, "others": view_others,
+        "grainFactor": round(k, 3), "effFactor": round(k / f, 3) if f else None, "srcEff": src_eff,
         "assumptions": assumptions, "warnings": warnings, "notes": notes, "folder": None if opts.get("folder") == "none" else t.get("path"),
         "bittering": ctx["bittering"],
     }
@@ -731,6 +794,9 @@ def sanitize(raw):
     d["notes"] = str(raw.get("notes") or "")[:6000]
     d["unparsed"] = [str(x)[:200] for x in (raw.get("unparsed") or [])[:40] if isinstance(x, str)]
     d["mash_choice"] = raw.get("mash_choice") if raw.get("mash_choice") in ("recipe", "standard") else None
+    src_o = [x for x in raw.get("others") or [] if isinstance(x, dict) and str(x.get("name") or "").strip()]
+    for item, orig in zip(d["others"], src_o):
+        item["water"] = bool(orig.get("water"))
     for key, field, hi in (("malts", "set_kg", 500), ("hops", "set_g", 50000)):
         src = [x for x in raw.get(key) or [] if isinstance(x, dict) and str(x.get("name") or "").strip()]
         for item, orig in zip(d[key], src):
@@ -743,7 +809,7 @@ def clean_opts(o):
     return {"water": o.get("water") if o.get("water") in ("template", "IPA", "NEIPA", "Pale") else None,
             "round": 5 if str(o.get("round")) == "5" else 1,
             "folder": "none" if o.get("folder") == "none" else "template",
-            "ibu": "calc" if o.get("ibu") == "calc" else "recipe"}
+            "ibu": "match" if o.get("ibu") == "match" else "keep"}
 
 
 # ------------------------------------------------------------------ upload

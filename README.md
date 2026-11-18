@@ -83,16 +83,19 @@ Paste a whole recipe (title, batch size, OG/FG/IBU, malts, hops, yeast, method) 
 1. **Reading.** By default the recipe is read on your own server. It understands metric and imperial amounts, US and imperial
    gallons, °F, tables copied from web pages, and BeerSmith/Brewfather-style printouts. Anything it can't settle becomes a question
    for you, with a recommended answer. Tick "Answer the questions for me" to take the recommended answers straight away.
-2. **Matching.** Malts, hops and yeast are matched to ingredients you have used before: crystal malts by colour, yeasts by strain
-   or family (for example WLP001 → your US-05). A hop you have never used can be kept as a new ingredient or swapped for one of
-   yours with a similar aroma. A bittering hop can be swapped for your usual bittering hop.
+2. **Following the recipe.** Every malt, hop addition and other addition is kept as written: same ingredients, stages, times and
+   order. Nothing is swapped automatically. When you have used the very same ingredient before (same malt, same hop variety and
+   form), yours is used for its colour, potential or alpha acid. You can swap any ingredient for one of yours from the menu under
+   it. The yeast is matched by strain or family (for example WLP001 or "a Chico strain" → your US-05), as a question.
 3. **Scaling to your batch.**
-   - The grain bill is scaled to reach the recipe's OG at your batch size and efficiency. If the recipe has no OG, its efficiency
-     (or 72%) is used to work it out.
-   - Bittering hops are scaled to the recipe's IBU, using your hops' alpha acids. Boil additions longer than your boil are
-     shortened, and the bittering makes up the difference.
-   - Whirlpool and dry hops keep the same grams per litre. Cryo and lupulin count as double strength.
-   - Hop totals are shown in 100 g bags.
+   - Hops and other additions (finings, liquid hop products and so on) are multiplied by your batch size ÷ the recipe's.
+   - Grain gets the same volume factor plus an efficiency correction, so it still reaches the recipe's OG at your efficiency.
+     If the recipe has no OG, its efficiency (or 72%) is used.
+   - The review shows each amount as recipe → scaled → change. Click **edit** to set one yourself.
+   - Bitterness: hops are scaled as written by default. "Adjust bittering" scales the bittering additions to hit the recipe's IBU.
+   - Hop times are kept as written; if they're longer than your boil you're told to lengthen it in Brewfather.
+   - Numbered dry hops ("first/second/third dry hop") without days become a question about which days.
+   - Hop totals are shown in 100 g bags. Water salts and priming sugar from the recipe aren't added: your water standards apply.
 4. **Your standards.** Equipment, mash, fermentation, folder and usual yeast come from your standard recipe (Admin page). For
    water you can keep your standard salts, or get salts worked out for West Coast IPA, NEIPA or pale ale on your own water.
 5. **Review and create.** Every match and amount can be changed. **Create in Brewfather** adds it as a new recipe; it never

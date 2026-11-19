@@ -301,7 +301,8 @@ function renderQuestions() {
   $('#qs').innerHTML = qs.map((q, n) => `<div class="q" data-q="${n}">
     <div class="t">${esc(q.text)}</div>${q.detail ? `<div class="d">${esc(q.detail)}</div>` : '<div style="height:6px"></div>'}
     <div class="opts">${q.options.map((o, k) => `<button type="button" data-opt="${n}:${k}"${k === 0 ? ' class="rec"' : ''}>${esc(o.label)}${o.note ? `<small>${esc(o.note)}</small>` : ''}</button>`).join('')}
-      ${q.field ? `<span><input type="${q.kind === 'text' ? 'text' : 'number'}" step="any" data-qin="${n}" aria-label="${esc(q.text)}"${q.kind === 'text' ? ' style="width:240px"' : ''}>${q.unit ? ` ${esc(q.unit)}` : ''} <button type="button" data-qset="${n}">Use</button></span>` : ''}</div></div>`).join('');
+      ${q.kind === 'select' ? `<span><select data-qin="${n}" aria-label="Another malt for ${esc(q.text)}" style="max-width:320px"><option value="">Another of your malts…</option>${(q.choices || []).map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select> <button type="button" data-qset="${n}">Use</button></span>`
+        : q.field ? `<span><input type="${q.kind === 'text' ? 'text' : 'number'}" step="any" data-qin="${n}" aria-label="${esc(q.text)}"${q.kind === 'text' ? ' style="width:240px"' : ''}>${q.unit ? ` ${esc(q.unit)}` : ''} <button type="button" data-qset="${n}">Use</button></span>` : ''}</div></div>`).join('');
   $('#revTitle').textContent = qs.length ? '3. Preview (open questions use the recommended answer for now)' : '3. Review and create';
   $('#uploadBtn').disabled = qs.length > 0;
 }
@@ -334,21 +335,45 @@ function renderReview() {
   const scaled = (path, val, unit, dp, isSet) => isSet
     ? `<input type="number" step="any" min="0" style="width:76px" value="${val}" data-p="${path}" aria-label="Your amount"> ${unit}<div><button class="link" type="button" data-unset="${path}" style="font-size:12px">use scaled</button></div>`
     : `<span class="sc"><b>${fmt(val, dp)} ${unit}</b> <button class="link" type="button" data-edit="${path}" data-val="${val}" style="font-size:12px">edit</button></span>`;
-  const asSelect = (path, cur, writtenLabel, same, swaps) => {
-    const o = [opt('new', writtenLabel, cur)];
-    same.forEach(n => o.push(opt(n, `Your ${n} (same)`, cur)));
-    const sw = swaps.filter(n => !same.includes(n));
-    if (sw.length) o.push(`<optgroup label="Swap for one of yours">${sw.map(n => opt(n, n, cur)).join('')}</optgroup>`);
+  /* groups: [[group label or '', [[value, text], ...]], ...]; a name appears once, in its first group */
+  const asSelect = (path, cur, writtenLabel, groups) => {
+    const seen = new Set(['new']), o = [opt('new', writtenLabel, cur)];
+    groups.forEach(([label, items]) => {
+      const rows = items.filter(([val]) => val && !seen.has(val) && seen.add(val));
+      if (!rows.length) return;
+      const html = rows.map(([val, text]) => opt(val, text, cur)).join('');
+      o.push(label ? `<optgroup label="${esc(label)}">${html}</optgroup>` : html);
+    });
+    if (cur !== 'new' && !seen.has(cur)) o.push(opt(cur, cur, cur));
     return `<select class="as" data-p="${path}" aria-label="Use as">${o.join('')}</select>`;
+  };
+  const maltInfo = Object.fromEntries((v.allMalts || []).map(x => [x.name, x]));
+  const maltText = n => maltInfo[n] ? `${n} · ${maltInfo[n].ebc} EBC` : n;
+  const hopInfo = Object.fromEntries((v.allHops || []).map(x => [x.name, x]));
+  const hopText = (n, srcCryo) => {
+    const x = hopInfo[n];
+    if (!x) return n;
+    const amt = x.cryo && !srcCryo ? ' · half the weight' : !x.cryo && srcCryo ? ' · double the weight' : '';
+    return `${n}${x.cryo ? ' (cryo)' : ''}${x.alpha ? ` · α ${fmt(x.alpha)}%` : ''}${amt}`;
+  };
+  const ratioNote = h => {
+    const bits = [];
+    if (h.formRatio && Math.abs(h.formRatio - 1) > 0.01) bits.push(h.formRatio < 1 ? 'cryo: half the weight' : 'pellets: double the weight');
+    if (h.alphaRatio && Math.abs(h.alphaRatio - 1) > 0.01) bits.push(`alpha ×${fmt(h.alphaRatio, 2)}`);
+    return bits.length ? `<div class="chg">${bits.join(', ')}</div>` : '';
   };
 
   $('#malts').innerHTML = '<thead><tr><th>Malt</th><th class="n">Recipe</th><th class="n">Scaled</th><th class="n">Change</th><th class="n">%</th><th class="n">EBC</th><th></th></tr></thead><tbody>' +
     v.malts.map(m => {
       const dm = d.malts[m.i], cur = dm.match || 'new';
-      const same = m.same && dm.match ? [dm.match] : [];
-      const swaps = m.choices.concat(dm.match && dm.match !== 'new' && !m.same ? [dm.match] : []);
+      const same = m.same && dm.match ? [[dm.match, `Your ${dm.match} (same)`]] : [];
+      const uses = m.uses || {};
+      const groups = [['', same],
+                      [m.family ? `Your ${m.family} (most used first)` : 'Your malts of this kind',
+                       m.choices.map(n => [n, `${maltText(n)} · ${uses[n] || 0} brew${uses[n] === 1 ? '' : 's'}`])],
+                      ['All your malts (A–Z)', (v.allMalts || []).map(x => [x.name, maltText(x.name)])]];
       return `<tr><td><div>${esc(m.src)}${m.same ? '' : m.new ? '' : ' <span class="badge">swapped</span>'}</div>
-          ${asSelect(`malts.${m.i}.match`, cur, `As written: ${m.src}`, same, [...new Set(swaps)])}</td>
+          ${asSelect(`malts.${m.i}.match`, cur, `As written: ${m.src}`, groups)}</td>
         <td class="n"><input class="ed" type="number" step="0.01" min="0" style="width:72px" value="${dm.kg ?? ''}" data-p="malts.${m.i}.kg" aria-label="Recipe kg"> kg</td>
         <td class="n">${scaled(`malts.${m.i}.set_kg`, m.kg, 'kg', 2, m.set)}</td>
         <td class="n">${chg(m.kg, m.srcKg, 'kg', 2)}</td>
@@ -359,19 +384,24 @@ function renderReview() {
   $('#hops').innerHTML = '<thead><tr><th>Hop</th><th>When</th><th class="n">Recipe</th><th class="n">Scaled</th><th class="n">Change</th><th class="n">IBU</th><th></th></tr></thead><tbody>' +
     v.hops.map(h => {
       const dh = d.hops[h.i], cur = dh.match || 'new';
-      const same = h.choices || [];
-      const swaps = (h.subs || []).concat(h.bitter ? (S.view.bittering || []) : [], dh.match && dh.match !== 'new' && !same.includes(dh.match) ? [dh.match] : []);
+      const srcCryo = h.srcForm === 'cryo';
+      const hx = n => [n, hopText(n, srcCryo)];
+      const groups = [['', (h.choices || []).map(n => [n, `Your ${hopText(n, srcCryo)} (same)`])],
+                      ['Same variety, other form', (h.sameVariety || []).map(hx)],
+                      ['Similar aroma', (h.subs || []).map(hx)],
+                      ['Your usual bittering hops', h.bitter ? (S.view.bittering || []).map(hx) : []],
+                      ['All your hops (A–Z)', (v.allHops || []).map(x => hx(x.name))]];
       const form = dh.form && dh.form !== 'pellet' ? ` <span class="badge">${esc(dh.form === 'leaf' ? 'whole cone' : dh.form)}</span>` : '';
       const when = `<select data-p="hops.${h.i}.use" aria-label="When">${USES.map(([k, l]) => opt(k, l, dh.use || '')).join('')}</select>
         ${dh.use === 'Dry Hop' ? `day <input type="number" min="0" max="30" style="width:56px" value="${dh.day ?? ''}" placeholder="${h.day ?? ''}" data-p="hops.${h.i}.day" aria-label="Dry hop day">${dh.charge ? ` <span class="muted" style="font-size:12px">#${dh.charge}</span>` : ''}`
           : dh.use === 'Boil' || dh.use === 'Mash' ? `<input type="number" min="0" max="240" style="width:62px" value="${dh.time ?? ''}" data-p="hops.${h.i}.time" aria-label="Minutes"> min` : ''}`;
       return `<tr><td><div>${esc(h.src)}${form}${h.swapped ? ' <span class="badge">swapped</span>' : ''}</div>
-          ${asSelect(`hops.${h.i}.match`, cur, `As written: ${h.src}${h.new ? '' : ''}`, same, [...new Set(swaps)])}
+          ${asSelect(`hops.${h.i}.match`, cur, `As written: ${h.src}${srcCryo ? ' (cryo)' : ''}`, groups)}
           <div class="src">α ${fmt(h.alpha)}%${h.swapped ? ` · ${esc(h.name)}` : ''}</div></td>
         <td style="white-space:nowrap">${when}</td>
         <td class="n"><input class="ed" type="number" step="0.1" min="0" style="width:66px" value="${dh.g ?? ''}" data-p="hops.${h.i}.g" aria-label="Recipe grams"> g</td>
         <td class="n">${scaled(`hops.${h.i}.set_g`, h.g, 'g', 0, h.set)}</td>
-        <td class="n">${chg(h.g, h.srcG, 'g', 0)}</td>
+        <td class="n">${chg(h.g, h.srcG, 'g', 0)}${ratioNote(h)}</td>
         <td class="n">${fmt(h.ibu)}</td>
         <td><button class="x" type="button" data-del="hops.${h.i}" aria-label="Remove ${esc(h.src)}">×</button></td></tr>`;
     }).join('') + '</tbody>';
@@ -439,8 +469,8 @@ document.addEventListener('click', e => {
   const qs = e.target.closest('[data-qset]');
   if (qs) {
     const q = S.questions[+qs.dataset.qset], inp = document.querySelector(`[data-qin="${qs.dataset.qset}"]`);
-    const val = q.kind === 'text' ? inp.value.trim() : parseFloat(inp.value);
-    if (q.kind === 'text' ? !val : isNaN(val)) { inp.focus(); return; }
+    const val = q.kind === 'text' || q.kind === 'select' ? inp.value.trim() : parseFloat(inp.value);
+    if (q.kind === 'text' || q.kind === 'select' ? !val : isNaN(val)) { inp.focus(); return; }
     setPath(q.field, val);
     return check();
   }

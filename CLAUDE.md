@@ -98,14 +98,19 @@ adds the header, CSS and footer to every page.
 - **The owner's rule: follow the pasted recipe.** Same ingredients, additions, stages and times; only amounts change.
   Never substitute automatically: `auto_match` uses one of your ingredients only when it is the same thing
   (`same_malt`: token subset + category + colour; `same_hop`: variety + form, pellet = whole cone), otherwise `"new"`.
-  Swaps are only the user's choice from the row menu.
+  Swaps are only the user's choice: the row menu, or the malt question. Malts: an identical malt is taken without asking only
+  if used in 3+ brews; otherwise, when you have malts of the same family (`malt_family`: pilsner, ale, 2-row, pale = one
+  "base" family), it's a question offering that family most-used first (e.g. a pilsner malt and an ale malt the user
+  treats as interchangeable), "keep as written", and a select of every malt. Menus list every malt and hop from past brews.
 - Standard ("template") recipe: setting `import_template_id` (chosen on Admin, saved to `data/import_template.json`),
   else the latest brew's recipe. Its batch size, efficiency, boil, equipment, mash, fermentation, folder, water, miscs
   and yeast amount are applied. Style fields are dropped.
 - Scaling: every hop and other addition × (your batch ÷ recipe batch); grain × the factor that reaches the recipe's OG
   (or its efficiency, else 72%) at your size and efficiency. Hop times stay as written (warning if longer than your boil).
-  Option `ibu: "match"` rescales only the bittering additions to the stated IBU. A hop the user swapped is adjusted by
-  alpha (bittering) or strength (cryo = 2×). Recipe "others" become Brewfather miscs, scaled; water salts and priming are not added.
+  Option `ibu: "match"` rescales only the bittering additions to the stated IBU. A hop in another form or swapped is adjusted by
+  strength (cryo / lupulin = half the pellet weight, pellets = double the cryo weight) and, for a bittering hop swapped to
+  another variety, by alpha acid compared at pellet strength (alpha ÷ strength). Swap menus list every malt and hop
+  from past brews (`allMalts`, `allHops`; oils and extracts left out). Recipe "others" become Brewfather miscs, scaled; water salts and priming are not added.
 - Yeast: strain code, then `YEAST_FAMILIES` (asked as a question). Swap menus offer aroma-similar hops (HopDatabase
   cosine) and the owner's usual bittering hops.
 - Test recipe: Craft Beer & Brewing "Readers' Choice WCIPA" (19 L, whole-cone, hopback, "each", ml AQB, numbered dry hops).

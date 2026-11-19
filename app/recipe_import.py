@@ -192,6 +192,34 @@ def malt_choices(m, ctx, n=5):
     return [(name, sc) for sc, _, name in ranked[:n] if sc > 0.25]
 
 
+# Malts that can stand in for each other. Pilsner, ale, pale, 2-row, Maris Otter... are all pale base malts.
+FAMILY = {"pils": "base"}
+FAMILY_LABEL = {"base": "pale base malts", "crystal": "crystal and caramel malts", "dextrin": "dextrin malts", "munich": "Munich malts",
+                "vienna": "Vienna malts", "wheat": "wheat malts", "oats": "oats", "rye": "rye", "acid": "acid malts",
+                "choc": "chocolate malts", "roast": "roasted malts", "sugar": "sugars", "extract": "malt extracts",
+                "biscuit": "biscuit and toffee malts", "adjunct": "rice and corn", "lactose": "lactose"}
+
+
+def malt_family(name, obj=None):
+    c = malt_cat((name or "") + " " + ((obj or {}).get("grainCategory") or ""))
+    return FAMILY.get(c, c)
+
+
+def malt_family_list(m, ctx):
+    """Your malts of the same family as the recipe's: most used first (crystal and roasted: closest colour first)."""
+    fam = malt_family(m.get("name"))
+    if not fam:
+        return []
+    used, lib = ctx["uses"]["fermentables"], ctx["lib"]["fermentables"]
+    names = [n for n, o in lib.items() if malt_family(n, o) == fam]
+    c1 = m.get("color_srm")
+    if fam in ("crystal", "roast", "choc", "biscuit") and c1 is not None:
+        names.sort(key=lambda n: (round(abs(math.log((c1 + 1) / ((lib[n].get("color") or 0) + 1))), 1), -used.get(n, 0), n))
+    else:
+        names.sort(key=lambda n: (-used.get(n, 0), n.lower()))
+    return names
+
+
 def hop_key(name, ctx):
     k = hop_flavour._key(br.hop_variety(name))
     return ctx["db"]["aliases"].get(k, k)
@@ -303,7 +331,12 @@ def auto_match(d, ctx):
             m["match"] = None
         if m.get("match") is None:
             same = [n for n, _ in malt_choices(m, ctx, 8) if same_malt(m, lib["fermentables"][n])]
-            m["match"] = max(same, key=lambda n: used["fermentables"].get(n, 0)) if same else "new"
+            best = max(same, key=lambda n: used["fermentables"].get(n, 0)) if same else None
+            if best and (used["fermentables"].get(best, 0) >= 3 or len(malt_family_list(m, ctx)) <= 1):
+                m["match"] = best  # the very same malt, and one you use regularly
+            elif not same and not malt_family_list(m, ctx):
+                m["match"] = "new"  # nothing like it in your brews: keep the recipe's own
+            # otherwise it stays None and becomes a question: which of your malts of that kind, or keep it as written
     for h in d["hops"]:
         if h.get("match") and h["match"] != "new" and h["match"] not in lib["hops"]:
             h["match"] = None
@@ -366,9 +399,23 @@ def questions(d, ctx):
     if d["malts"] and not has_kg and not d.get("og"):
         qs.append(_q("og", "The malts are given as percentages only. What OG should it have?", field="og", kind="number",
                      detail="For example 1.060."))
+    lib_f, used_f = ctx["lib"]["fermentables"], ctx["uses"]["fermentables"]
     for i, m in enumerate(d["malts"]):
         if not m.get("kg") and has_kg:
             qs.append(_q(f"mkg{i}", f"How much {m['name']}?", field=f"malts.{i}.kg", kind="number", unit="kg", detail=m.get("raw")))
+        if m.get("match") is None:
+            same = sorted((n for n, _ in malt_choices(m, ctx, 8) if same_malt(m, lib_f[n])), key=lambda n: -used_f.get(n, 0))[:2]
+            fam = same + [n for n in malt_family_list(m, ctx) if n not in same]
+            label = lambda n: f"{n} · {(lib_f[n].get('color') or 0) * 1.97:.0f} EBC"
+            opts = [{"label": label(n), "note": ("same as the recipe, " if n in same else "")
+                     + f"used in {used_f.get(n, 0)} brew{'' if used_f.get(n, 0) == 1 else 's'}",
+                     "set": {f"malts.{i}.match": n}} for n in fam[:4]]
+            opts.append({"label": f"Keep “{m['name']}” as written", "set": {f"malts.{i}.match": "new"}})
+            rest = sorted((n for n in lib_f if n not in fam[:4]), key=str.lower)
+            q = _q(f"malt{i}", f"Which malt for “{m['name']}”?", opts, field=f"malts.{i}.match", kind="select",
+                   detail=f"{m.get('raw')}  —  your {FAMILY_LABEL.get(malt_family(m['name']), 'malts of this kind')}, most used first")
+            q["choices"] = [[n, label(n)] for n in fam[4:]] + [[n, label(n)] for n in rest if n not in fam]
+            qs.append(q)
     for i, h in enumerate(d["hops"]):
         if not h.get("g"):
             qs.append(_q(f"hg{i}", f"How much {h['name']}?", field=f"hops.{i}.g", kind="number", unit="g", detail=h.get("raw")))
@@ -515,7 +562,9 @@ def build(d, opts, ctx):
                            "new": not (m.get("match") and m["match"] != "new"), "set": m.get("set_kg") is not None,
                            "same": bool(m.get("match") in lib["fermentables"] and same_malt(m, lib["fermentables"][m["match"]])),
                            "factor": round(o["amount"] / w, 3) if w else None,
-                           "choices": [n for n, _ in malt_choices(m, ctx, 6)]})
+                           "choices": malt_family_list(m, ctx),
+                           "family": FAMILY_LABEL.get(malt_family(m["name"])),
+                           "uses": {n: ctx["uses"]["fermentables"].get(n, 0) for n in malt_family_list(m, ctx)}})
 
     # ---- yeast and FG
     tyeast = (t.get("yeasts") or [None])[0]
@@ -576,16 +625,21 @@ def build(d, opts, ctx):
         else:
             s_ibu = 0
         bitter = use in ("Boil", "First Wort", "Mash") and s_time >= 30
-        # Every addition is the recipe's amount x the volume factor. Only a hop you chose to swap in is adjusted:
-        # by alpha acid for bittering, by strength (cryo = double) for the rest.
+        # Every addition is the recipe's amount x the volume factor. A hop in a different form is adjusted by strength:
+        # cryo / lupulin is half the weight of pellets (and pellets double the weight of cryo). A bittering hop you swapped
+        # for another variety is also adjusted for alpha acid, compared at pellet strength, so the bitterness stays the same.
         g = g_src * f
+        form_ratio = s_strength / strength
+        g *= form_ratio
+        alpha_ratio = 1.0
         if swapped and bitter:
-            g *= s_alpha / our_alpha
-        elif swapped or s_strength != strength:
-            g *= s_strength / strength
+            src_pe = (h["alpha"] / s_strength) if h.get("alpha") else ctx["alphas"].get(hop_key(h["name"], ctx))
+            if src_pe:
+                alpha_ratio = src_pe / (our_alpha / strength)
+                g *= alpha_ratio
         hops.append({"i": i, "h": h, "obj": obj, "use": use, "time": s_time, "g": g, "bitter": bitter, "s_ibu": s_ibu,
                      "alpha": our_alpha, "s_alpha": s_alpha, "strength": strength, "factor": g / g_src if g_src else f,
-                     "swapped": swapped})
+                     "swapped": swapped, "formRatio": form_ratio, "alphaRatio": alpha_ratio})
     if hops and not any(x["bitter"] for x in hops):
         boils = [x for x in hops if x["use"] in ("Boil", "First Wort")]
         if boils:
@@ -635,9 +689,11 @@ def build(d, opts, ctx):
                           "day": o.get("day"), "ibu": round(ibu, 1), "stage": stage, "strength": x["strength"],
                           "ge": g * x["strength"], "gpl": round(g * x["strength"] / size, 2), "bitter": x["bitter"],
                           "new": not (h.get("match") and h["match"] != "new"), "set": h.get("set_g") is not None,
-                          "factor": round(x["factor"], 3), "swapped": x["swapped"], "srcForm": h.get("form"), "charge": h.get("charge"),
+                          "factor": round(x["factor"], 3), "swapped": x["swapped"], "srcForm": src_form(h), "charge": h.get("charge"),
+                          "formRatio": x["formRatio"], "alphaRatio": round(x["alphaRatio"], 2),
                           "choices": [n for n in hop_choices(h, ctx) if same_hop(h, n, ctx)],
-                          "subs": [n for n, _ in similar_hops(h, ctx)] + [n for n in hop_choices(h, ctx) if not same_hop(h, n, ctx)]})
+                          "sameVariety": [n for n in hop_choices(h, ctx) if not same_hop(h, n, ctx) and br.hop_form(lib["hops"][n]) != "Extract / oil"],
+                          "subs": [n for n, _ in similar_hops(h, ctx)]})
     ibu = sum(v["ibu"] for v in view_hops)
     longest = max([x["time"] for x in hops if x["use"] == "Boil"] + [0])
     if longest > boil:
@@ -782,6 +838,12 @@ def build(d, opts, ctx):
         "grainFactor": round(k, 3), "effFactor": round(k / f, 3) if f else None, "srcEff": src_eff,
         "assumptions": assumptions, "warnings": warnings, "notes": notes, "folder": None if opts.get("folder") == "none" else t.get("path"),
         "bittering": ctx["bittering"],
+        # every malt and hop from your past brews, for the swap menus (oils and extracts aren't weighed like hops)
+        "allMalts": sorted(({"name": n, "ebc": round((o.get("color") or 0) * 1.97)} for n, o in lib["fermentables"].items()),
+                           key=lambda x: x["name"].lower()),
+        "allHops": sorted(({"name": n, "alpha": o.get("alpha"),
+                            "cryo": br.hop_form(o) == "Cryo / lupulin"} for n, o in lib["hops"].items() if br.hop_form(o) != "Extract / oil"),
+                          key=lambda x: x["name"].lower()),
     }
     return view, r
 

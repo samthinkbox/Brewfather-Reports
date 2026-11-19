@@ -85,8 +85,11 @@ Paste a whole recipe (title, batch size, OG/FG/IBU, malts, hops, yeast, method) 
    for you, with a recommended answer. Tick "Answer the questions for me" to take the recommended answers straight away.
 2. **Following the recipe.** Every malt, hop addition and other addition is kept as written: same ingredients, stages, times and
    order. Nothing is swapped automatically. When you have used the very same ingredient before (same malt, same hop variety and
-   form), yours is used for its colour, potential or alpha acid. You can swap any ingredient for one of yours from the menu under
-   it. The yeast is matched by strain or family (for example WLP001 or "a Chico strain" → your US-05), as a question.
+   form) and use it regularly, yours is used for its colour, potential or alpha acid. Otherwise each malt becomes a question:
+   your malts of the same kind are offered most-used first (for pale two-row: your pilsner and ale malts), with "keep as written"
+   and a list of every malt you've used. You can swap any ingredient from the menu under it, which lists every malt and hop from
+   your past brews (same kind or variety first, then A–Z). Swapping between pellets and cryo /
+   lupulin halves or doubles the weight; swapping a bittering hop for another variety also corrects for alpha acid. The yeast is matched by strain or family (for example WLP001 or "a Chico strain" → your US-05), as a question.
 3. **Scaling to your batch.**
    - Hops and other additions (finings, liquid hop products and so on) are multiplied by your batch size ÷ the recipe's.
    - Grain gets the same volume factor plus an efficiency correction, so it still reaches the recipe's OG at your efficiency.

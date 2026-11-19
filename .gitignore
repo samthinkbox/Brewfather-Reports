@@ -1,4 +1,4 @@
-# secrets and your own data: never commit
+﻿# secrets and your own data: never commit
 .env
 data/
 output/
@@ -8,3 +8,6 @@ dist/
 HopDatabase/
 __pycache__/
 *.pyc
+# session record (personal reference)
+transcript part one.pdf
+HANDOFF.md

@@ -1,4 +1,4 @@
-﻿# secrets and your own data: never commit
+# secrets and your own data: never commit
 .env
 data/
 output/

@@ -37,6 +37,15 @@ HOP_ICON = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-w
             '<path d="M8 17c.5 2.5 2 4 4 5 2-1 3.5-2.5 4-5-1.5 0-3 .5-4 1.5C11 17.5 9.5 17 8 17z"/></svg>')
 
 
+# installable app: manifest, icons and the service worker (see pwa.py); theme colour follows the header
+HEAD = ('<link rel="manifest" href="manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">'
+        '<link rel="apple-touch-icon" href="icon-192.png">'
+        '<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">'
+        '<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">'
+        "<script>if ('serviceWorker' in navigator && window.isSecureContext && location.protocol !== 'file:')"
+        " navigator.serviceWorker.register('sw.js').catch(() => {});</script>")
+
+
 def pages():
     s = settings.load()
     p = [("report.html", "Brew History"), ("versions.html", "Recipe versions")]
@@ -62,7 +71,7 @@ def footer():
 
 
 def apply(page, active):
-    page = page.replace("</style>", CSS + "</style>", 1)
+    page = page.replace("</style>", CSS + "</style>", 1).replace("</head>", HEAD + "</head>", 1)
     page = re.sub(r"<body([^>]*)>", lambda m: m.group(0) + header(active), page, count=1)
     return page.replace("</main>", "</main>" + footer(), 1)
 

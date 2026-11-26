@@ -13,6 +13,7 @@ import os
 APP = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(APP)
 TEMPLATES = os.path.join(ROOT, "templates")
+ICONS = os.path.join(TEMPLATES, "icons")
 CONFIG = os.path.join(ROOT, "config")
 HOPDATA = os.path.join(ROOT, "hopdata")
 DATA = os.path.join(ROOT, "data")

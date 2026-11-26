@@ -31,6 +31,7 @@ import build_report  # noqa: E402
 import hop_flavour  # noqa: E402
 import layout  # noqa: E402
 import paths  # noqa: E402
+import pwa  # noqa: E402
 import recipe_import  # noqa: E402
 import recipe_parse  # noqa: E402
 import settings  # noqa: E402
@@ -63,7 +64,7 @@ LOCK = threading.Lock()
 SESSIONS = {}          # token -> expiry time
 FAILS = {}             # ip -> [failed attempts, locked until]
 JOB = {"name": None, "label": None, "running": False, "started": None, "finished": None, "ok": None, "log": ""}
-STATE = {"setup_code": None, "proxy": False, "last_auto": 0.0}
+STATE = {"setup_code": None, "proxy": False, "last_auto": 0.0, "stop_token": "", "server": None}
 _cache = {"mtime": None, "batches": []}
 
 
@@ -405,6 +406,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         name = u.path.lstrip("/")
         if not name:
             return self.redirect("report.html" if os.path.exists(os.path.join(OUT, "report.html")) and not setup_needed() else "admin.html")
+        if name in pwa.FILES:  # app install files, no brew data in them
+            body, ctype = pwa.get(name)
+            return self.send(200, body, ctype)
         ext = os.path.splitext(name)[1].lower()
         if not re.fullmatch(r"[A-Za-z0-9_.-]+", name) or ext not in STATIC or name.startswith("."):
             return self.send(404, b"Not found")
@@ -487,6 +491,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         time.sleep(0.6)
 
     def api_post(self, path, b):
+        if path == "/api/stop":  # used by desktop.py --stop; only works with the token it started the server with
+            tok = STATE.get("stop_token") or ""
+            if (len(tok) < 32 or self.client_address[0] not in ("127.0.0.1", "::1")
+                    or not hmac.compare_digest(str(b.get("token") or ""), tok)):
+                return self.err("Forbidden.", 403)
+            threading.Thread(target=STATE["server"].shutdown, daemon=True).start()
+            return self.json({"ok": True})
         if path == "/api/setup":
             if not setup_needed():
                 return self.err("Setup is already done. Sign in instead.", 409)
@@ -741,13 +752,19 @@ def main():
     STATE["proxy"] = a.proxy
     os.makedirs(OUT, exist_ok=True)
     layout.write_static_pages()
+    # The desktop launcher (desktop.py) passes its own setup code, which it gives to the app window, and a
+    # token it can later use to stop this server. Neither is passed on to the job subprocesses.
+    given = os.environ.pop("BFR_SETUP_CODE", "").strip().upper()
+    STATE["stop_token"] = os.environ.pop("BFR_STOP_TOKEN", "")
     if setup_needed():
-        STATE["setup_code"] = "-".join(secrets.token_hex(2).upper() for _ in range(3))
+        STATE["setup_code"] = (given if re.fullmatch(r"[0-9A-F]{4}(-[0-9A-F]{4}){2}", given)
+                               else "-".join(secrets.token_hex(2).upper() for _ in range(3)))
     try:
         srv = Server((a.host, a.port), Handler)
     except OSError as e:
         raise SystemExit(f"Can't use port {a.port} ({e.strerror or e}). Brewfather Reports (or another program) is probably "
                          f"already running there: close it, or start this one with --port {a.port + 1}.")
+    STATE["server"] = srv
     threading.Thread(target=scheduler, daemon=True).start()
     host = "localhost" if a.host in ("127.0.0.1", "0.0.0.0", "::") else a.host
     print(f"{version.NAME} {version.VERSION} - {version.COPYRIGHT.replace(chr(169), '(c)')}")

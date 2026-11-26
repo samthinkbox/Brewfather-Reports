@@ -3,7 +3,7 @@
 Reports on a home brewer's own brewing history, pulled from their Brewfather account through
 the Brewfather API v2: hops, malt, water, results, recipe versions and hop flavour charts.
 It is packaged so others can run their own copy with their own User ID and API key.
-Version is in `app/version.py` (1.1.0). © 2026 Thinkbox, MIT licence (`LICENSE`, `TERMS.md`).
+Version is in `app/version.py` (1.2.0). © 2026 Thinkbox, MIT licence (`LICENSE`, `TERMS.md`).
 Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`).
 
 ## Ground rules
@@ -23,6 +23,9 @@ Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`)
 | Path | What it is |
 |---|---|
 | `start.bat`, `start.sh` | Run `app/server.py`. |
+| `install-app.bat`, `install-app.sh` | `desktop.py --install --autostart`: Start Menu/desktop shortcuts (Windows), app menu entry (Linux). |
+| `app/desktop.py` | Desktop launcher: starts the server detached (pythonw, log in `data/server.log`, pid/port/stop token in `data/desktop.json`) and opens Edge/Chrome with `--app=`. `--install`, `--uninstall`, `--stop`, `--server-only`. |
+| `app/pwa.py` | Installable-app files served without sign-in: `manifest.webmanifest`, `sw.js` (`templates/sw.js`, offline note only, no cache) and icons in `templates/icons/` (drawn by `tools/make_icons.py`). `layout.HEAD` links them. |
 | `app/server.py` | Stdlib web server: Admin page, report pages, JSON API, job runner, scheduler. |
 | `app/run.py` | Fetch and build without the server (`--offline`, `--update-hops`). |
 | `app/fetch.py`, `app/brewfather.py` | API calls; writes `data/batches.json`. `load_env()` reads `.env`. |
@@ -57,6 +60,8 @@ adds the header, CSS and footer to every page.
 - `JOBS`: refresh (`run.py`), rebuild (`--offline`), hops (`--update-hops`), upload
   (`next_brew.py --upload`), run as subprocesses with a live log.
 - `EDITABLE` lists the config files the Admin page may edit (size-limited; JSON validated).
+- Desktop launcher hand-off: env `BFR_SETUP_CODE` (the launcher's setup code, given to the window as `admin.html#setup=…`)
+  and `BFR_STOP_TOKEN` (enables `POST /api/stop` from 127.0.0.1 with that token). Both are popped from the environment.
 - On Windows the socket uses `SO_EXCLUSIVEADDRUSE`: plain `SO_REUSEADDR` let two servers share
   a port and caused "setup code is wrong". Don't remove it.
 

@@ -86,7 +86,7 @@ a { color: var(--accent); }
 <div id="offline" class="card narrow" hidden>
   <h2>Start the Brewfather Reports server</h2>
   <p>The Admin page needs the Brewfather Reports server, which isn't running at this address. In the Brewfather Reports folder run:</p>
-  <p><code>python app/server.py</code> (or double-click <code>start.bat</code>)</p>
+  <p><code>python app/server.py</code> (or double-click <code>start.bat</code>, or use the Brewfather Reports desktop shortcut)</p>
   <p>then open <a href="http://localhost:8642/admin.html">http://localhost:8642/admin.html</a>.</p>
 </div>
 
@@ -95,7 +95,7 @@ a { color: var(--accent); }
   <h2>Set up Brewfather Reports</h2>
   <p class="note" style="margin:0 0 14px">Your Brewfather User ID and API key are stored only on this server. Create them in Brewfather › Settings › API with read access to batches and recipes (add write access to recipes if you'll send Next Brew recipes).</p>
   <label class="f"><span>Setup code</span><input type="text" name="code" required placeholder="ABCD-1234-EF56" autocomplete="one-time-code">
-    <span class="note" style="font-weight:400">Shown in the window where the server is running.</span></label>
+    <span class="note" id="codeNote" style="font-weight:400">Shown in the window where the server is running.</span></label>
   <label class="f"><span>Brewfather User ID</span><input type="text" name="userId" autocomplete="off" spellcheck="false"></label>
   <label class="f"><span>Brewfather API key</span><input type="password" name="apiKey" autocomplete="off"></label>
   <p class="note" id="keepKey" hidden style="margin:-6px 0 12px">A key is already saved in .env. Leave both empty to keep it.</p>
@@ -257,7 +257,13 @@ async function load() {
   try { ST = await api('/api/status'); }
   catch (e) { show('offline'); $('#sub').textContent = 'The server is not running.'; return; }
   $('#sub').textContent = `${ST.name} ${ST.version} · ${ST.copyright}`;
-  if (ST.setupNeeded) { show('setup'); $('#keepKey').hidden = !ST.credsSet; return; }
+  if (ST.setupNeeded) {
+    show('setup'); $('#keepKey').hidden = !ST.credsSet;
+    // the desktop launcher passes its setup code in the address (#setup=…), which never reaches the server
+    const m = location.hash.match(/setup=([0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4})/i);
+    if (m) { $('#setup [name=code]').value = m[1].toUpperCase(); $('#codeNote').textContent = 'Filled in by the desktop app.'; }
+    return;
+  }
   if (!ST.loggedIn) { show('login'); $('#login [name=password]').focus(); return; }
   show('app');
   renderApp();

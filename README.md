@@ -6,6 +6,8 @@ Reports on your own brewing history from your Brewfather account: hops, malt, wa
 recipe versions and hop flavour charts. It runs on your own computer or server with your own
 Brewfather API key, and your data stays there.
 
+![The Brew History page: totals, hop varieties by amount and stage, hops used together and bittering hops](docs/screenshot-brew-history.png)
+
 **New: runs as a desktop app.** One double-click (`install-app.bat` on Windows) gives it a Start Menu and
 desktop shortcut with its own icon. It opens in its own window with no tabs or address bar, needs no server
 window, and closes down by itself when you're done. In Edge or Chrome an **Install as app** button on the Admin

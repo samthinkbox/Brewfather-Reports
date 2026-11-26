@@ -3,4 +3,4 @@ NAME = "Brewfather Reports"
 VERSION = "1.2.0"
 COPYRIGHT = "© 2026 Thinkbox"
 LICENSE = "MIT"
-REPO = "samthinkbox/Brew-History-for-Brewfather"   # GitHub repository: new versions are its releases (updates.py)
+REPO = "samthinkbox/Brewfather-Reports"   # GitHub repository: new versions are its releases (updates.py)

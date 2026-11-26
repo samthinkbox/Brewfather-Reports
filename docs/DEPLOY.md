@@ -110,7 +110,7 @@ From GitHub:
 
 ```
 cd /var/www/vhosts/yourdomain.com
-git clone https://github.com/samthinkbox/Brew-History-for-Brewfather.git brew-reports
+git clone https://github.com/samthinkbox/Brewfather-Reports.git brew-reports
 ```
 
 or upload the package zip (`python tools/build_package.py`) with Plesk's File Manager and extract it to

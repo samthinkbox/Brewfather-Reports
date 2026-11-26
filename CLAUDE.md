@@ -4,7 +4,7 @@ Reports on a home brewer's own brewing history, pulled from their Brewfather acc
 the Brewfather API v2: hops, malt, water, results, recipe versions and hop flavour charts.
 It is packaged so others can run their own copy with their own User ID and API key.
 Version is in `app/version.py` (1.2.0). © 2026 Thinkbox, MIT licence (`LICENSE`, `TERMS.md`).
-Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`).
+Repo: https://github.com/samthinkbox/Brewfather-Reports (branch `main`).
 
 ## Ground rules
 - **Python standard library only.** No pip dependencies, no build step, no JS frameworks.

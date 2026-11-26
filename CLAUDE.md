@@ -16,8 +16,8 @@ Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`)
 - Scripts are run with `python -I`, so every module in `app/` does
   `sys.path.insert(0, HERE)` before importing its siblings. Keep that pattern.
 - All file locations come from `app/paths.py`. Don't hard-code paths elsewhere.
-- On this Windows machine git is at `/c/Program Files/Git/cmd/git.exe`. Push with
-  `GIT_TERMINAL_PROMPT=0`; credentials are cached by Git Credential Manager.
+- **Nothing personal in committed files.** The owner's brews, water, malts, servers and machine details live in
+  `CLAUDE.local.md` (gitignored, loaded by Claude Code alongside this file). Examples in code and docs stay generic.
 
 ## Layout
 | Path | What it is |
@@ -36,11 +36,11 @@ Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`)
 | `app/recipe_parse.py` | Rule-based reader for pasted recipes (`parse`), `from_json` (AI or pasted JSON), the AI `prompt`. |
 | `app/recipe_import.py` | Import page logic: template, matching, `questions`, `build` (scaling + Brewfather recipe), `upload`. |
 | `app/ai_parse.py` | Optional AI reader: Claude, ChatGPT, Gemini, Copilot (GitHub Models / Azure OpenAI) over urllib. |
-| `app/updates.py` | Update check: GitHub `releases/latest` of `version.REPO`, at most daily (cache `data/update.json`), setting `update_check`; `GET /api/update[?force=1]` (signed in); Admin shows a card when newer. `BFR_UPDATE_API` env points it at a test server. Releases: tag `vX.Y.Z` with the package zip attached. The repo is private, so the check reports "No versions have been published" until it's public. |
+| `app/updates.py` | Update check: GitHub `releases/latest` of `version.REPO`, at most daily (cache `data/update.json`), setting `update_check`; `GET /api/update[?force=1]` (signed in); Admin shows a card when newer. `BFR_UPDATE_API` env points it at a test server. Releases: tag `vX.Y.Z` with the package zip attached. The check needs the repo (or its releases) public. |
 | `app/settings.py` | `data/settings.json` with `DEFAULTS` (only known keys are kept). |
-| `app/next_brew.py` | Owner's personal recipe ideas; `--upload` creates them in Brewfather. Not in the package. |
-| `templates/` | Page templates (`report.html`, `versions.html`, `next_brew.html`, `import.html`, `admin.html`, `terms.html`) and `hop_radar.js`. |
-| `config/` | Owner-editable files, also editable on the Admin page: `exclude.txt`, `families.txt`, `hop_flavours_extra.json`. |
+| `app/next_brew.py` | Optional personal recipe-ideas page (with `templates/next_brew.html`); `--upload` creates them in Brewfather. Local only: gitignored, not in the repo or the package. The Next Brew page and upload job appear only when it exists. |
+| `templates/` | Page templates (`report.html`, `versions.html`, `import.html`, `admin.html`, `terms.html`) and `hop_radar.js`. |
+| `config/` | User-editable files, also editable on the Admin page: `exclude.txt` and `families.txt` (personal, gitignored, created by the Admin page) and `hop_flavours_extra.json` (committed). |
 | `hopdata/` | Copy of HopDatabase `hops.json` (MIT, © 2024 Kasper Andreas Rømer Grøntved). |
 | `docs/` | `DEPLOY.md` (Caddy, nginx, IIS, systemd, Plesk) and `brew-reports.service`. |
 | `tools/build_package.py` | Builds `dist/brewfather-reports-<version>.zip`; leaves out `.env`, `data/`, `output/`, `next_brew.py`, `exclude.txt`, `families.txt`. New `app/` modules must be added to its `FILES`. |
@@ -88,9 +88,8 @@ adds the header, CSS and footer to every page.
   stage weight: Whirlpool and Dry hop 1.0, Late boil 0.5, bittering excluded. `parts` gives each
   hop's share per aroma (adds up to `aromas`); beyond `MAX_PARTS = 6` hops the rest become "Other".
   Missing hops are reported; add them (or aliases) in `config/hop_flavours_extra.json`.
-- **Water:** the owner's tap sources are matched by the `water_pattern` regex setting
-  (e.g. `townname|bore`, label "Town supply"). Empty pattern means every source; empty
-  label reads "tap".
+- **Water:** the user's tap sources are matched by the `water_pattern` regex setting (e.g. `townname|bore`)
+  and shown with `water_label`. Empty pattern means every source; empty label reads "tap".
 - **Recipe versions:** brews grouped into families by `config/families.txt`.
 
 ## Import recipe (`import.html`, `recipe_import.py`)
@@ -139,7 +138,7 @@ There is no test suite. After a change:
 2. Serve `output/` (e.g. `python -I -m http.server 8798 --directory output`) and look at the
    pages in a browser for console errors and layout overflow; stop the server afterwards.
    `file://` previews don't work well in the browser pane.
-3. Check numbers against a few known brews.
+3. Check numbers against a few known brews (the owner's reference brews are in `CLAUDE.local.md`).
 4. `python tools/build_package.py` if packaging changed.
 5. Don't test uploads against the owner's Brewfather account: replace `recipe_import.upload` with a stub that saves the
    recipe JSON (and run a test server on another port with a known session token).

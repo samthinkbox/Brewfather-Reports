@@ -11,3 +11,9 @@ __pycache__/
 # session record (personal reference)
 transcript part one.pdf
 HANDOFF.md
+# personal: the owner's notes for Claude, brew lists and recipe ideas (kept locally only)
+CLAUDE.local.md
+config/exclude.txt
+config/families.txt
+app/next_brew.py
+templates/next_brew.html

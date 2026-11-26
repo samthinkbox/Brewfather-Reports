@@ -10,7 +10,7 @@ Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`)
 - **Python standard library only.** No pip dependencies, no build step, no JS frameworks.
 - **Never put credentials in code or commits.** The Brewfather User ID and API key, and any AI reader
   key (`AI_KEY_CLAUDE`, `AI_KEY_CHATGPT`, `AI_KEY_GEMINI`, `AI_KEY_COPILOT`), live only in
-  `.env` (written by the Admin page, gitignored). `data/`, `output/`, `Next Brew/`, `dist/`
+  `.env` (written by the Admin page, gitignored). `data/`, `output/`, `dist/`
   and `HopDatabase/` are private or generated and also gitignored.
 - Commit and push only when the owner asks.
 - Scripts are run with `python -I`, so every module in `app/` does
@@ -32,18 +32,18 @@ Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`)
 | `app/build_report.py` | Turns batches into `output/report.html`, `versions.html` and the CSVs. |
 | `app/hop_flavour.py` | Hop aroma profiles from HopDatabase data. |
 | `app/layout.py` | Shared header/nav, footer, CSS; builds `admin.html`, `import.html` and `terms.html`. |
-| `app/brew_calc.py` | Shared maths: gravity, Morey colour, Tinseth, water/salt plan, `water_block`, ingredient `library`. Used by next_brew and recipe_import. |
+| `app/brew_calc.py` | Shared maths: gravity, Morey colour, Tinseth, water/salt plan, `water_block`, ingredient `library`. Used by recipe_import (and local add-ons). |
 | `app/recipe_parse.py` | Rule-based reader for pasted recipes (`parse`), `from_json` (AI or pasted JSON), the AI `prompt`. |
 | `app/recipe_import.py` | Import page logic: template, matching, `questions`, `build` (scaling + Brewfather recipe), `upload`. |
 | `app/ai_parse.py` | Optional AI reader: Claude, ChatGPT, Gemini, Copilot (GitHub Models / Azure OpenAI) over urllib. |
 | `app/updates.py` | Update check: GitHub `releases/latest` of `version.REPO`, at most daily (cache `data/update.json`), setting `update_check`; `GET /api/update[?force=1]` (signed in); Admin shows a card when newer. `BFR_UPDATE_API` env points it at a test server. Releases: tag `vX.Y.Z` with the package zip attached. The check needs the repo (or its releases) public. |
 | `app/settings.py` | `data/settings.json` with `DEFAULTS` (only known keys are kept). |
-| `app/next_brew.py` | Optional personal recipe-ideas page (with `templates/next_brew.html`); `--upload` creates them in Brewfather. Local only: gitignored, not in the repo or the package. The Next Brew page and upload job appear only when it exists. |
+| `app/extras.py` | Hook for optional local add-ons: if gitignored `app/local_extras.py` exists, its `PAGES` join the header nav, its `JOBS` (label, argv, confirm text, needs key) become Admin buttons (`status.extraJobs`), and `build()` runs after `run.py` builds the reports. The shared app names no add-on; personal ones are described in `CLAUDE.local.md`. |
 | `templates/` | Page templates (`report.html`, `versions.html`, `import.html`, `admin.html`, `terms.html`) and `hop_radar.js`. |
 | `config/` | User-editable files, also editable on the Admin page: `exclude.txt` and `families.txt` (personal, gitignored, created by the Admin page) and `hop_flavours_extra.json` (committed). |
 | `hopdata/` | Copy of HopDatabase `hops.json` (MIT, © 2024 Kasper Andreas Rømer Grøntved). |
 | `docs/` | `DEPLOY.md` (Caddy, nginx, IIS, systemd, Plesk) and `brew-reports.service`. |
-| `tools/build_package.py` | Builds `dist/brewfather-reports-<version>.zip`; leaves out `.env`, `data/`, `output/`, `next_brew.py`, `exclude.txt`, `families.txt`. New `app/` modules must be added to its `FILES`. |
+| `tools/build_package.py` | Builds `dist/brewfather-reports-<version>.zip`; leaves out `.env`, `data/`, `output/`, `local_extras.py`, `exclude.txt`, `families.txt`. New `app/` modules must be added to its `FILES`. |
 
 Pages are built as static HTML: the Python side computes a JSON payload and injects it into a
 template; the template's own JS renders tables and SVG charts. `layout.apply(page, active)`
@@ -58,8 +58,8 @@ adds the header, CSS and footer to every page.
   5 failed logins lock that address for 5 minutes.
 - Only `output/*.html|.csv|.png|.svg` are served; report pages need sign-in unless
   `public_reports` is on.
-- `JOBS`: refresh (`run.py`), rebuild (`--offline`), hops (`--update-hops`), upload
-  (`next_brew.py --upload`), run as subprocesses with a live log.
+- `JOBS`: refresh (`run.py`), rebuild (`--offline`), hops (`--update-hops`), plus any from `extras.jobs()`, run as
+  subprocesses with a live log.
 - `EDITABLE` lists the config files the Admin page may edit (size-limited; JSON validated).
 - Desktop launcher hand-off: env `BFR_SETUP_CODE` (the launcher's setup code, given to the window as `admin.html#setup=…`)
   and `BFR_STOP_TOKEN` (enables `POST /api/stop` from 127.0.0.1 with that token). Both are popped from the environment.

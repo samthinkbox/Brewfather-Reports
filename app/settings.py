@@ -16,7 +16,6 @@ DEFAULTS = {
     "water_label": "",          # name used in the Water section, e.g. "Town supply"; empty = "tap"
     "auto_refresh_hours": 0,    # 0 = off; otherwise fetch from Brewfather this often (minimum 1)
     "public_reports": False,    # True = report pages can be viewed without signing in
-    "next_brew": False,         # build the Next Brew page (needs next_brew.py set up for your recipes)
     "update_check": True,       # ask GitHub once a day whether a newer version has been released (updates.py)
     # Import recipe page
     "import_template_id": "",   # Brewfather recipe used as your standard (equipment, mash, water...); empty = your latest brew

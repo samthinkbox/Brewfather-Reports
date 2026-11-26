@@ -3,8 +3,8 @@
     python tools/build_package.py
 
 The zip holds the program, templates, hop data, licence, terms and docs. It never includes
-your .env (API key), data/ (your brews, settings and admin password), output/, Next Brew/,
-your personal next_brew.py recipes, or your exclude.txt and families.txt.
+your .env (API key), data/ (your brews, settings and admin password), output/, local add-ons
+(app/local_extras.py and what it uses), or your exclude.txt and families.txt.
 """
 import os
 import sys
@@ -19,7 +19,7 @@ FILES = [
     "app/server.py", "app/run.py", "app/fetch.py", "app/brewfather.py", "app/build_report.py",
     "app/hop_flavour.py", "app/layout.py", "app/settings.py", "app/version.py", "app/paths.py",
     "app/brew_calc.py", "app/recipe_parse.py", "app/recipe_import.py", "app/ai_parse.py", "app/pwa.py", "app/desktop.py",
-    "app/updates.py",
+    "app/updates.py", "app/extras.py",
     # page templates
     "templates/report.html", "templates/versions.html", "templates/admin.html", "templates/terms.html", "templates/import.html",
     "templates/hop_radar.js", "templates/sw.js",
@@ -34,7 +34,7 @@ FILES = [
     "install-app.bat", "install-app.sh",
 ]
 STARTERS = {".gitignore": ".env\ndata/\noutput/\n__pycache__/\n"}
-NEVER = (".env", "admin.json", "batches.json", "settings.json", "next_brew.py", "exclude.txt", "families.txt",
+NEVER = (".env", "admin.json", "batches.json", "settings.json", "local_extras.py", "exclude.txt", "families.txt",
          "import_template.json", "imported.json")
 
 

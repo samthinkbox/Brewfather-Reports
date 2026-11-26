@@ -2,7 +2,6 @@
 .env
 data/
 output/
-Next Brew/
 # build output and local copies
 dist/
 HopDatabase/
@@ -11,9 +10,8 @@ __pycache__/
 # session record (personal reference)
 transcript part one.pdf
 HANDOFF.md
-# personal: the owner's notes for Claude, brew lists and recipe ideas (kept locally only)
+# personal: notes for Claude, brew lists, and optional local add-ons (app/extras.py)
 CLAUDE.local.md
 config/exclude.txt
 config/families.txt
-app/next_brew.py
-templates/next_brew.html
+app/local_extras.py

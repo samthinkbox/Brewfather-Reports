@@ -236,20 +236,15 @@ python app/run.py --update-hops   # download the latest HopDatabase hop data fir
 
 Colours are shown in EBC (Brewfather stores SRM; EBC = SRM × 1.97).
 
-## Next Brew (optional, personal)
-
-`app/next_brew.py` builds recipe ideas from your own brews and can create them in Brewfather
-(`python app/next_brew.py --upload`). Its recipes, water profile and template recipe are set up for one
-brewer, so it is not included in the package. Turn the page on in Admin › Settings once you have adapted it.
-
 ## Building the package
 
-`python tools/build_package.py` writes `dist/brewfather-reports-<version>.zip`.
+`python tools/build_package.py` writes `dist/brewfather-reports-<version>.zip`. It leaves out `.env`, `data/`,
+`output/`, your `exclude.txt` and `families.txt`, and any local add-ons. The version number is in `app/version.py`.
+
 To release a version: raise `VERSION` in `app/version.py`, build the package, then publish a GitHub release whose tag is
 the version (for example `v1.3.0`) with the zip attached:
 `gh release create v1.3.0 dist/brewfather-reports-1.3.0.zip --title "1.3.0" --notes "What's new…"`.
-The Admin page's update check reads the latest release, so it needs the repository (or its releases) to be public. It leaves out `.env`, `data/`,
-`output/`, `next_brew.py` and your `exclude.txt` and `families.txt`. The version number is in `app/version.py`.
+The Admin page's update check reads the latest release, so it needs the repository (or its releases) to be public.
 
 
 ## Shutting app down

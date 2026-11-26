@@ -19,7 +19,6 @@ HOPDATA = os.path.join(ROOT, "hopdata")
 DATA = os.path.join(ROOT, "data")
 OUTPUT = os.path.join(ROOT, "output")
 ENV = os.path.join(ROOT, ".env")
-NEXT_BREW_DIR = os.path.join(ROOT, "Next Brew")
 BATCHES = os.path.join(DATA, "batches.json")
 
 

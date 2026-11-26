@@ -11,7 +11,7 @@ Brewfather Reports is an independent tool. It is not made, endorsed or supported
 - You use your own Brewfather User ID and API key (Brewfather › Settings › API). They are stored only on the computer or server where you install Brewfather Reports, in its `.env` file, and are never sent to Thinkbox.
 - Keep the key private. Anyone who has it can read your Brewfather data. If it is exposed, generate a new one in Brewfather.
 - You are responsible for following Brewfather's terms of service and API terms (linked from the [Brewfather API documentation](https://docs.brewfather.app/api)), including their limits on how often the API is used. Don't share one key between several installations to get around those limits.
-- Brewfather Reports only reads from Brewfather, except when you choose an action that writes (such as sending Next Brew recipes or creating an imported recipe). Those actions say so on the button.
+- Brewfather Reports only reads from Brewfather, except when you choose an action that writes (such as creating an imported recipe). Those actions say so on the button.
 
 ## Your data
 

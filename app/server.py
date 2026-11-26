@@ -28,6 +28,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ai_parse  # noqa: E402
 import build_report  # noqa: E402
+import extras  # noqa: E402
 import hop_flavour  # noqa: E402
 import layout  # noqa: E402
 import paths  # noqa: E402
@@ -45,7 +46,6 @@ DATA = paths.DATA
 ADMIN_FILE = os.path.join(DATA, "admin.json")
 ENV_FILE = paths.ENV
 BATCHES = paths.BATCHES
-UPLOADED = os.path.join(paths.NEXT_BREW_DIR, "uploaded.json")
 SESSION_SECONDS = 12 * 3600
 COOKIE = "bfr_session"
 EDITABLE = {"families.txt": "text", "exclude.txt": "text", "hop_flavours_extra.json": "json"}
@@ -58,8 +58,9 @@ JOBS = {
     "refresh": ("Fetch from Brewfather and rebuild", PY + [paths.app("run.py")]),
     "rebuild": ("Rebuild pages from saved data", PY + [paths.app("run.py"), "--offline"]),
     "hops": ("Update hop data and rebuild", PY + [paths.app("run.py"), "--offline", "--update-hops"]),
-    "upload": ("Send Next Brew recipes to Brewfather", PY + [paths.app("next_brew.py"), "--upload"]),
 }
+EXTRA_JOBS = extras.jobs()  # optional local add-ons (extras.py)
+JOBS.update({k: (v[0], v[1]) for k, v in EXTRA_JOBS.items() if k not in JOBS})
 
 LOCK = threading.Lock()
 SESSIONS = {}          # token -> expiry time
@@ -202,9 +203,7 @@ def pw_problem(pw):
 def start_job(name):
     if name not in JOBS:
         return "Unknown action."
-    if name == "upload" and not os.path.exists(paths.app("next_brew.py")):
-        return "Next Brew isn't set up in this installation."
-    if name in ("refresh", "upload") and not all(creds()):
+    if (name == "refresh" or (name in EXTRA_JOBS and EXTRA_JOBS[name][3])) and not all(creds()):
         return "Add your Brewfather User ID and API key first."
     with LOCK:
         if JOB["running"]:
@@ -323,20 +322,13 @@ def status(logged_in):
         sources = [x["name"] for x in build_report.water_sources(batches)]
     except Exception:
         sources = []
-    uploaded = {}
-    if os.path.exists(UPLOADED):
-        try:
-            with open(UPLOADED, encoding="utf-8") as f:
-                uploaded = json.load(f)
-        except (OSError, ValueError):
-            pass
     s.update({
         "userId": (user[:4] + "…" + user[-3:]) if len(user) > 8 else ("set" if user else ""),
         "settings": settings.load(),
         "data": {"batches": len(batches), "fetched": mtime(BATCHES), "built": mtime(os.path.join(OUT, "report.html"))},
         "hops": hop_flavour.info(),
         "waterSources": sources,
-        "nextBrew": {"available": os.path.exists(paths.app("next_brew.py")), "uploaded": uploaded},
+        "extraJobs": [{"name": k, "label": v[0], "confirm": v[2]} for k, v in EXTRA_JOBS.items()],
         "ai": ai_parse.public_info(),
         "downloads": [n for n in ("brews.csv", "hops.csv", "malts.csv") if os.path.exists(os.path.join(OUT, n))],
         "job": job_view(tail=True),

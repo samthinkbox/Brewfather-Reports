@@ -7,6 +7,7 @@ import html as _html
 import os
 import re
 
+import extras
 import paths
 import settings
 import version
@@ -64,8 +65,7 @@ HEAD = ('<link rel="manifest" href="manifest.webmanifest"><link rel="icon" type=
 def pages():
     s = settings.load()
     p = [("report.html", "Brew History"), ("versions.html", "Recipe versions")]
-    if s.get("next_brew") and os.path.exists(paths.app("next_brew.py")):
-        p.append(("next_brew.html", "Next Brew"))
+    p += extras.pages()  # optional local add-ons (extras.py)
     p.append(("import.html", "Import recipe"))
     p.append(("admin.html", "Admin"))
     return p

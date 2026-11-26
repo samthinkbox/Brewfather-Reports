@@ -1,4 +1,4 @@
-"""Brewing maths and Brewfather recipe helpers shared by next_brew.py and recipe_import.py.
+"""Brewing maths and Brewfather recipe helpers used by recipe_import.py (and any local add-ons).
 
 Gravity, colour (Morey), bitterness (Tinseth) and the water/salt plan. Standard library only.
 """

@@ -108,7 +108,7 @@ a { color: var(--accent); }
 <!-- first-time setup -->
 <form id="setup" class="card narrow" hidden autocomplete="off">
   <h2>Set up Brewfather Reports</h2>
-  <p class="note" style="margin:0 0 14px">Your Brewfather User ID and API key are stored only on this server. Create them in Brewfather › Settings › API with read access to batches and recipes (add write access to recipes if you'll send Next Brew recipes).</p>
+  <p class="note" style="margin:0 0 14px">Your Brewfather User ID and API key are stored only on this server. Create them in Brewfather › Settings › API with read access to batches and recipes (add write access to recipes to create imported recipes).</p>
   <label class="f"><span>Setup code</span><input type="text" name="code" required placeholder="ABCD-1234-EF56" autocomplete="one-time-code">
     <span class="note" id="codeNote" style="font-weight:400">Shown in the window where the server is running.</span></label>
   <label class="f"><span>Brewfather User ID</span><input type="text" name="userId" autocomplete="off" spellcheck="false"></label>
@@ -147,7 +147,7 @@ a { color: var(--accent); }
         <button class="primary" type="button" data-job="refresh">Fetch from Brewfather and rebuild</button>
         <button type="button" data-job="rebuild">Rebuild pages from saved data</button>
         <button type="button" data-job="hops">Update hop data</button>
-        <button type="button" data-job="upload" id="uploadBtn" hidden>Send Next Brew recipes to Brewfather (writes)</button>
+        <span id="extraJobs" style="display:contents"></span>
       </div>
       <p class="note">Fetching uses about one Brewfather API call per 50 brews. "Update hop data" downloads the latest hop aroma data from HopDatabase on GitHub.</p>
       <pre class="log" id="log" hidden></pre>
@@ -179,7 +179,6 @@ a { color: var(--accent); }
       <label class="chk"><input type="checkbox" name="update_check"> <span><b>Check for new versions.</b> Asks GitHub once a day whether a newer version is out. Nothing about you or your brews is sent.
         <button type="button" id="updCheck" style="margin-left:6px;padding:2px 8px;font-size:12px">Check now</button></span></label>
       <p class="msg" id="updMsg" role="status" style="margin-top:-6px"></p>
-      <label class="chk" id="nbRow" hidden><input type="checkbox" name="next_brew"> <span><b>Next Brew page.</b> Recipe ideas from next_brew.py (set up for your own recipes).</span></label>
       <button class="primary" type="submit">Save and rebuild</button>
       <p class="msg" id="settingsMsg" role="status"></p>
     </form>
@@ -341,9 +340,8 @@ function renderApp() {
     ['Pages built', when(d.built), ''],
     ['Hops with flavour data', h.hops, h.updated ? 'Hop data from ' + when(h.updated).replace(/,.*$/, '') : 'No hop data file'],
   ].map(([k, v, s]) => `<div class="tile card"><div class="k">${k}</div><div class="v">${esc(v)}</div>${s ? `<div class="s">${esc(s)}</div>` : ''}</div>`).join('');
-  const nb = ST.nextBrew;
-  $('#uploadBtn').hidden = !(nb.available && ST.settings.next_brew);
-  $('#nbRow').hidden = !nb.available;
+  $('#extraJobs').innerHTML = (ST.extraJobs || []).map(j =>
+    `<button type="button" data-job="${esc(j.name)}" data-confirm="${esc(j.confirm || '')}">${esc(j.label)}</button>`).join('');
   const f = $('#settings');
   Object.entries(ST.settings).forEach(([k, v]) => { const el = f.elements[k]; if (!el) return; if (el.type === 'checkbox') el.checked = !!v; else el.value = v; });
   $('#waterPick').innerHTML = '<option value="">Choose a Brewfather water source…</option>' + ST.waterSources.map(n => `<option>${esc(n)}</option>`).join('');
@@ -415,7 +413,7 @@ $('#login').addEventListener('submit', async e => {
 document.addEventListener('click', async e => {
   const jb = e.target.closest('[data-job]');
   if (jb) {
-    if (jb.dataset.job === 'upload' && !confirm('This creates or updates the Next Brew recipes in your Brewfather account. Continue?')) return;
+    if (jb.dataset.confirm && !confirm(jb.dataset.confirm)) return;
     try { await api('/api/job', { name: jb.dataset.job }); $('#exDirty').hidden = true; showJob({ name: jb.dataset.job, label: jb.textContent, running: true, log: 'Starting…' }); poll(); }
     catch (err) { alert(err.message); }
     return;
@@ -446,7 +444,7 @@ $('#settings').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target.elements, body = {};
   ['site_title', 'water_pattern', 'water_label', 'auto_refresh_hours'].forEach(k => body[k] = f[k].value);
-  ['public_reports', 'next_brew', 'update_check'].forEach(k => body[k] = f[k].checked);
+  ['public_reports', 'update_check'].forEach(k => body[k] = f[k].checked);
   try { const r = await api('/api/settings', body); ST.settings = r.settings; say('settingsMsg', 'Saved. Rebuilding the pages…', true); poll(); }
   catch (err) { say('settingsMsg', err.message); }
 });

@@ -1,4 +1,4 @@
-/* Hop flavour charts, shared by report.html and next_brew.html (inlined at build time by hop_flavour.py).
+/* Hop flavour charts, used by report.html and import.html (inlined at build time by hop_flavour.py).
    HopRadar.inline(profile)        -> radar SVG for the page (theme colours, hover tips)
    HopRadar.makeup(profile)        -> legend + stacked bars: how much each hop adds to each aroma
    HopRadar.card(profile, meta)    -> 1000x1000 SVG image card with both charts (fixed light colours)

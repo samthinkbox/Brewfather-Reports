@@ -10,10 +10,9 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import build_report  # noqa: E402
+import extras  # noqa: E402
 import fetch  # noqa: E402
 import hop_flavour  # noqa: E402
-import paths  # noqa: E402
-import settings  # noqa: E402
 
 
 def main(argv):
@@ -22,9 +21,7 @@ def main(argv):
     if "--offline" not in argv:
         fetch.main()
     build_report.main()
-    if settings.load().get("next_brew") and os.path.exists(paths.app("next_brew.py")):
-        import next_brew
-        next_brew.main([])  # rebuilds next_brew.html; it only sends to Brewfather with: python app/next_brew.py --upload
+    extras.build()  # optional local add-ons (extras.py)
 
 
 if __name__ == "__main__":

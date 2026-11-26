@@ -19,6 +19,7 @@ import json
 import os
 import secrets
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -31,8 +32,9 @@ sys.path.insert(0, HERE)
 import paths  # noqa: E402
 import version  # noqa: E402
 
-STATE_FILE = os.path.join(paths.DATA, "desktop.json")   # pid, port and stop token of the server we started
+STATE_FILE = os.path.join(paths.DATA, "desktop.json")   # pid, port and stop token, written by the server itself
 LOG = os.path.join(paths.DATA, "server.log")
+IDLE_EXIT = 300   # seconds: the server stops this long after the last app window closes (not with --server-only)
 ADMIN_FILE = os.path.join(paths.DATA, "admin.json")
 WINDOWS = sys.platform == "win32"
 MAC = sys.platform == "darwin"
@@ -74,7 +76,7 @@ def pythonw():
     return sys.executable
 
 
-def start_server(port):
+def start_server(port, idle_exit=True):
     """Start the server in the background. Returns the setup code given to it, or None."""
     os.makedirs(paths.DATA, exist_ok=True)
     env = dict(os.environ)
@@ -90,10 +92,8 @@ def start_server(port):
     else:
         kw["start_new_session"] = True
     with open(LOG, "w", encoding="utf-8") as log:
-        p = subprocess.Popen([pythonw(), "-I", paths.app("server.py"), "--port", str(port)], cwd=paths.ROOT, env=env,
+        p = subprocess.Popen([pythonw(), "-I", paths.app("server.py"), "--port", str(port)] + (["--idle-exit", str(IDLE_EXIT)] if idle_exit else []), cwd=paths.ROOT, env=env,
                              stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, close_fds=True, **kw)
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump({"pid": p.pid, "port": port, "token": token}, f)
     for _ in range(60):
         time.sleep(0.25)
         if status(port):
@@ -104,34 +104,110 @@ def start_server(port):
     fail(f"The Brewfather Reports server didn't start.\n\n{tail}\n\nThe full log is in {LOG}")
 
 
-def ensure_server(port):
+def ensure_server(port, idle_exit=True):
     """Make sure our server answers on port. Returns a setup code for the window, or None."""
     st = status(port)
     if st == {}:
         fail(f"Another program is using port {port}. Close it, or start Brewfather Reports with --port {port + 1}.")
     if st is None:
-        return start_server(port)
+        # a double-click can run two launchers at once: only one starts the server, the other waits for it
+        lock = os.path.join(paths.DATA, "desktop.lock")
+        os.makedirs(paths.DATA, exist_ok=True)
+        try:
+            if os.path.exists(lock) and time.time() - os.path.getmtime(lock) > 30:
+                os.remove(lock)  # left by a launcher that crashed
+            os.close(os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+        except FileExistsError:
+            for _ in range(80):
+                time.sleep(0.25)
+                if status(port):
+                    return None
+            fail("The Brewfather Reports server didn't start. Try the shortcut again.")
+        try:
+            return start_server(port, idle_exit)
+        finally:
+            os.remove(lock)
     return None
 
 
-def stop():
+def server_pids():
+    """Process ids of every Brewfather Reports server running from this folder (shortcut, start.bat or sign-in)."""
+    target = os.path.normcase(paths.app("server.py"))
+    if WINDOWS:
+        ps = ("Get-CimInstance Win32_Process -Filter \"Name like 'python%'\" | "
+              "ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }")
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], capture_output=True, text=True,
+                           creationflags=0x08000000)
+    else:
+        r = subprocess.run(["ps", "-eo", "pid=,args="], capture_output=True, text=True)
+    pids = []
+    for line in r.stdout.splitlines():
+        pid, _, cmd = line.strip().replace("\t", " ", 1).partition(" ")
+        if pid.isdigit() and int(pid) != os.getpid() and target in os.path.normcase(cmd):
+            pids.append(int(pid))
+    return pids
+
+
+def listener_pids(ports):
+    """Process ids listening on those of ports where Brewfather Reports answers (catches a server started with a
+    relative path, as start.bat does)."""
+    ports = [p for p in ports if status(p)]
+    if not ports:
+        return []
+    if WINDOWS:
+        ps = ("Get-NetTCPConnection -State Listen -LocalPort " + ",".join(map(str, ports))
+              + " -ErrorAction SilentlyContinue | ForEach-Object { $_.OwningProcess }")
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], capture_output=True, text=True,
+                           creationflags=0x08000000)
+    elif shutil.which("lsof"):
+        r = subprocess.run(["lsof", "-t", "-sTCP:LISTEN"] + [f"-iTCP:{p}" for p in ports], capture_output=True, text=True)
+    else:
+        return []
+    return [int(x) for x in r.stdout.split() if x.isdigit() and int(x) not in (0, 4, os.getpid())]
+
+
+def gone(ports, seconds=5):
+    for _ in range(int(seconds * 4)):
+        if not any(status(p) for p in ports):
+            return True
+        time.sleep(0.25)
+    return False
+
+
+def stop(port):
+    """Close down Brewfather Reports: ask the server to stop, and end any server process still running."""
+    ports = {port}
+    s = {}
     try:
         with open(STATE_FILE, encoding="utf-8") as f:
             s = json.load(f)
-    except (OSError, ValueError):
-        return tell("No Brewfather Reports server started from the desktop shortcut is running.")
-    req = urllib.request.Request(f"http://127.0.0.1:{s['port']}/api/stop", method="POST",
-                                 data=json.dumps({"token": s["token"]}).encode(),
-                                 headers={"X-BFR": "1", "Content-Type": "application/json"})
+        ports.add(int(s["port"]))
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    was_running = any(status(p) for p in ports) or bool(server_pids())
     try:
+        req = urllib.request.Request(f"http://127.0.0.1:{s['port']}/api/stop", method="POST",
+                                     data=json.dumps({"token": s["token"]}).encode(),
+                                     headers={"X-BFR": "1", "Content-Type": "application/json"})
         urllib.request.urlopen(req, timeout=5).read()
-        msg = "Brewfather Reports has stopped."
-    except urllib.error.HTTPError:
-        msg = "That Brewfather Reports server wasn't started from the desktop shortcut. Close its window to stop it."
+    except (OSError, ValueError, KeyError, TypeError):
+        pass  # no file, or an old/other server: ended below
+    gone(ports, 2)
+    # anything still running: a server from this folder on any port, or whatever Brewfather Reports answers from
+    pids = sorted(set(server_pids()) | set(listener_pids(ports)))
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)  # on Windows this ends the process (TerminateProcess)
+        except OSError:
+            pass
+    if not gone(ports):
+        fail("Brewfather Reports couldn't be closed down. Restart the computer, or end \"Python\" in Task Manager.")
+    try:
+        os.remove(STATE_FILE)
     except OSError:
-        msg = "Brewfather Reports wasn't running."
-    os.remove(STATE_FILE)
-    tell(msg)
+        pass
+    tell("Brewfather Reports is closed down." if was_running else
+         "Brewfather Reports is closed down (it wasn't running).")
 
 
 # ------------------------------------------------------------------ app window
@@ -291,8 +367,8 @@ def main():
     if a.uninstall:
         return uninstall()
     if a.stop:
-        return stop()
-    code = ensure_server(a.port)
+        return stop(a.port)
+    code = ensure_server(a.port, idle_exit=not a.server_only)  # a sign-in start keeps running
     if a.server_only:
         return
     # "/" opens the reports, or the Admin page while setup is needed; the setup code rides in the #fragment,

@@ -19,6 +19,7 @@ FILES = [
     "app/server.py", "app/run.py", "app/fetch.py", "app/brewfather.py", "app/build_report.py",
     "app/hop_flavour.py", "app/layout.py", "app/settings.py", "app/version.py", "app/paths.py",
     "app/brew_calc.py", "app/recipe_parse.py", "app/recipe_import.py", "app/ai_parse.py", "app/pwa.py", "app/desktop.py",
+    "app/updates.py",
     # page templates
     "templates/report.html", "templates/versions.html", "templates/admin.html", "templates/terms.html", "templates/import.html",
     "templates/hop_radar.js", "templates/sw.js",

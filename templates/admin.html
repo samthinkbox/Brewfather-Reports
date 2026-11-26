@@ -52,8 +52,8 @@ textarea { font: 12px/1.5 ui-monospace, Consolas, monospace; min-height: 220px; 
 input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
 button:hover { background: var(--hover); }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-button.primary:hover { filter: brightness(1.08); }
+button.primary, a.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.primary:hover, a.btn.primary:hover { filter: brightness(1.08); }
 button:disabled { opacity: .5; cursor: default; }
 a.btnlink { display: inline-block; color: var(--ink); text-decoration: none; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; }
 a.btnlink:hover { background: var(--hover); }
@@ -71,6 +71,13 @@ th, td { padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--grid
 th { color: var(--ink-2); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: var(--surface); }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
+.install { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 20px; }
+.install img { width: 40px; height: 40px; border-radius: 8px; flex: none; }
+.install div { flex: 1 1 260px; }
+.install p { margin: 2px 0 0; }
+.upd-notes { white-space: pre-wrap; font: 12px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 6px 0 0;
+  max-height: 220px; overflow: auto; color: var(--ink-2); }
+a.btn { display: inline-block; text-decoration: none; border-radius: 6px; padding: 7px 12px; border: 1px solid var(--border); color: var(--ink); background: var(--surface); }
 .banner { background: var(--warn-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
 code { font: 12px ui-monospace, Consolas, monospace; background: var(--page); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
 a { color: var(--accent); }
@@ -81,6 +88,14 @@ a { color: var(--accent); }
 <main>
 <h1>Admin</h1>
 <p class="sub" id="sub">Loading…</p>
+
+<!-- shown by Edge and Chrome when the site can be installed as an app and isn't yet -->
+<div id="installCard" class="card install" hidden>
+  <img src="icon-192.png" alt="">
+  <div><b>Install Brewfather Reports as an app</b>
+    <p class="note">It gets its own window and icon, and appears in the Start Menu (or Launchpad) with your other apps.</p></div>
+  <button class="primary" type="button" id="installBtn">Install as app</button>
+</div>
 
 <!-- the page was opened without the server -->
 <div id="offline" class="card narrow" hidden>
@@ -115,6 +130,15 @@ a { color: var(--accent); }
 </form>
 
 <div id="app" hidden>
+  <!-- a newer version on GitHub (updates.py) -->
+  <div id="updateCard" class="card install" hidden>
+    <img src="icon-192.png" alt="">
+    <div><b id="updTitle"></b>
+      <p class="note">To update: use <b>Stop Brewfather Reports</b> (or close the server window), download the new version and
+        unzip it over this folder, then open Brewfather Reports again. Your brews, settings, password and keys are kept.</p>
+      <details id="updNotesBox"><summary class="note">What's new</summary><pre class="upd-notes" id="updNotes"></pre></details></div>
+    <a class="btn primary" id="updLink" href="#" target="_blank" rel="noopener">Download</a>
+  </div>
   <section style="margin-top:0">
     <div class="card">
       <div class="btns" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Data</h2><span id="jobPill" class="pill">Idle</span></div>
@@ -152,6 +176,9 @@ a { color: var(--accent); }
         <option value="0">Off</option><option value="1">Every hour</option><option value="3">Every 3 hours</option><option value="6">Every 6 hours</option><option value="12">Every 12 hours</option><option value="24">Once a day</option></select>
         <span class="note" style="font-weight:400">Runs while the server is running.</span></label>
       <label class="chk"><input type="checkbox" name="public_reports"> <span><b>Reports visible without sign-in.</b> Anyone who can reach this server can see your brew history. The Admin page always needs the password.</span></label>
+      <label class="chk"><input type="checkbox" name="update_check"> <span><b>Check for new versions.</b> Asks GitHub once a day whether a newer version is out. Nothing about you or your brews is sent.
+        <button type="button" id="updCheck" style="margin-left:6px;padding:2px 8px;font-size:12px">Check now</button></span></label>
+      <p class="msg" id="updMsg" role="status" style="margin-top:-6px"></p>
       <label class="chk" id="nbRow" hidden><input type="checkbox" name="next_brew"> <span><b>Next Brew page.</b> Recipe ideas from next_brew.py (set up for your own recipes).</span></label>
       <button class="primary" type="submit">Save and rebuild</button>
       <p class="msg" id="settingsMsg" role="status"></p>
@@ -253,8 +280,44 @@ async function api(path, body) {
 function say(id, text, good) { const el = document.getElementById(id); el.textContent = text || ''; el.className = 'msg' + (text ? (good ? ' ok' : ' bad') : ''); }
 function show(id) { ['offline', 'setup', 'login', 'app'].forEach(k => $('#' + k).hidden = k !== id); }
 
+// "Install as app": the browser's install prompt, kept by layout.HEAD as window.bfrInstall
+function showInstall() {
+  $('#installCard').hidden = !window.bfrInstall || matchMedia('(display-mode: standalone)').matches || !!(ST && ST.appInstalled);
+}
+addEventListener('bfr-installable', showInstall);
+addEventListener('appinstalled', () => { window.bfrInstall = null; showInstall(); });
+$('#installBtn').addEventListener('click', async () => {
+  const p = window.bfrInstall;
+  if (!p) return;
+  p.prompt();
+  await p.userChoice;  // the prompt can be used only once either way
+  window.bfrInstall = null; showInstall();
+});
+showInstall();
+
+// newer version on GitHub: a card at the top of the Admin page
+function showUpdate(u) {
+  const box = $('#updateCard');
+  box.hidden = !(u && u.newer);
+  if (box.hidden) return;
+  $('#updTitle').textContent = `Version ${u.latest} is available (you have ${u.current})`;
+  $('#updLink').href = u.url;
+  $('#updNotes').textContent = u.notes;
+  $('#updNotesBox').hidden = !u.notes.trim();
+}
+async function loadUpdate(force) {
+  try { const u = await api('/api/update' + (force ? '?force=1' : '')); showUpdate(u); return u; }
+  catch (e) { return { error: e.message }; }
+}
+$('#updCheck').addEventListener('click', async () => {
+  say('updMsg', 'Checking…', true);
+  const u = await loadUpdate(true);
+  if (u.error) say('updMsg', u.error);
+  else say('updMsg', u.newer ? `Version ${u.latest} is available: see the top of this page.` : `You have the latest version (${u.current}).`, true);
+});
+
 async function load() {
-  try { ST = await api('/api/status'); }
+  try { ST = await api('/api/status'); showInstall(); }
   catch (e) { show('offline'); $('#sub').textContent = 'The server is not running.'; return; }
   $('#sub').textContent = `${ST.name} ${ST.version} · ${ST.copyright}`;
   if (ST.setupNeeded) {
@@ -267,6 +330,7 @@ async function load() {
   if (!ST.loggedIn) { show('login'); $('#login [name=password]').focus(); return; }
   show('app');
   renderApp();
+  loadUpdate(false);
 }
 
 function renderApp() {
@@ -382,7 +446,7 @@ $('#settings').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target.elements, body = {};
   ['site_title', 'water_pattern', 'water_label', 'auto_refresh_hours'].forEach(k => body[k] = f[k].value);
-  ['public_reports', 'next_brew'].forEach(k => body[k] = f[k].checked);
+  ['public_reports', 'next_brew', 'update_check'].forEach(k => body[k] = f[k].checked);
   try { const r = await api('/api/settings', body); ST.settings = r.settings; say('settingsMsg', 'Saved. Rebuilding the pages…', true); poll(); }
   catch (err) { say('settingsMsg', err.message); }
 });

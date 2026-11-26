@@ -43,7 +43,22 @@ HEAD = ('<link rel="manifest" href="manifest.webmanifest"><link rel="icon" type=
         '<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">'
         '<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">'
         "<script>if ('serviceWorker' in navigator && window.isSecureContext && location.protocol !== 'file:')"
-        " navigator.serviceWorker.register('sw.js').catch(() => {});</script>")
+        " navigator.serviceWorker.register('sw.js').catch(() => {});"
+        # keep the browser's install prompt for the Admin page's "Install as app" button
+        "addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.bfrInstall = e;"
+        " dispatchEvent(new Event('bfr-installable')); });"
+        # opened as an installed app (or the shortcut's app window), or just installed: tell the server, so the
+        # Admin page hides "Install as app" in every browser. At most once an hour per window.
+        "const bfrSeen = () => { try { if (Date.now() - (+sessionStorage.bfrSeen || 0) < 3600000) return;"
+        " sessionStorage.bfrSeen = Date.now(); } catch (e) { /* no storage: tell anyway */ }"
+        " fetch('api/app-seen', {method: 'POST', headers: {'X-BFR': '1', 'Content-Type': 'application/json'}, body: '{}'})"
+        ".catch(() => {}); };"
+        "if (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: window-controls-overlay)').matches) bfrSeen();"
+        "addEventListener('appinstalled', bfrSeen);"
+        # on this computer, tell the server a page is still open (the desktop launcher stops it a few minutes after the last one closes)
+        "if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {"
+        " const ping = () => fetch('api/ping', {cache: 'no-store'}).catch(() => {}); ping(); setInterval(ping, 60000); }"
+        "</script>")
 
 
 def pages():

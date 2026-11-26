@@ -35,6 +35,7 @@ import pwa  # noqa: E402
 import recipe_import  # noqa: E402
 import recipe_parse  # noqa: E402
 import settings  # noqa: E402
+import updates  # noqa: E402
 import version  # noqa: E402
 from brewfather import Brewfather, load_env  # noqa: E402
 
@@ -64,7 +65,7 @@ LOCK = threading.Lock()
 SESSIONS = {}          # token -> expiry time
 FAILS = {}             # ip -> [failed attempts, locked until]
 JOB = {"name": None, "label": None, "running": False, "started": None, "finished": None, "ok": None, "log": ""}
-STATE = {"setup_code": None, "proxy": False, "last_auto": 0.0, "stop_token": "", "server": None}
+STATE = {"setup_code": None, "proxy": False, "last_auto": 0.0, "stop_token": "", "server": None, "last_seen": time.time()}
 _cache = {"mtime": None, "batches": []}
 
 
@@ -247,6 +248,18 @@ def scheduler():
             sys.stderr.write(f"scheduler: {e}\n")
 
 
+def idle_watch(seconds):
+    """--idle-exit: stop the server once no page has been open (no request at all) for this long, unless a job is
+    running. Open pages ping /api/ping every minute (layout.HEAD), so this is a few minutes after the last window closes."""
+    while True:
+        time.sleep(15)
+        if now() - STATE["last_seen"] > seconds and not JOB["running"]:
+            print("No app window open: stopping.")
+            sys.stdout.flush()
+            STATE["server"].shutdown()
+            return
+
+
 # ------------------------------------------------------------------ exclusions
 EXCLUDE = paths.config("exclude.txt")
 EXCLUDE_HEADER = ("# Batches to leave out of the reports (and the CSVs).\n"
@@ -284,10 +297,25 @@ def brews_list():
 
 
 # ------------------------------------------------------------------ status
+APP_SEEN = os.path.join(DATA, "app_seen.json")
+APP_SEEN_DAYS = 60  # the Install as app button comes back if the installed app hasn't been opened for this long
+
+
+def app_installed():
+    """Has the installed app (or the shortcut's app window) been opened lately, in any browser? Browsers don't tell
+    each other, so the pages tell the server (layout.HEAD -> /api/app-seen) and the Admin page asks it here."""
+    try:
+        with open(APP_SEEN, encoding="utf-8") as f:
+            return now() - float(json.load(f).get("seen") or 0) < APP_SEEN_DAYS * 86400
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+
+
 def status(logged_in):
     user, key = creds()
     s = {"name": version.NAME, "version": version.VERSION, "copyright": version.COPYRIGHT,
-         "setupNeeded": setup_needed(), "loggedIn": logged_in, "credsSet": bool(user and key)}
+         "setupNeeded": setup_needed(), "loggedIn": logged_in, "credsSet": bool(user and key),
+         "appInstalled": app_installed()}
     if not logged_in:
         return s
     batches = load_batches()
@@ -400,6 +428,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_GET(self):
+        STATE["last_seen"] = now()
         u = urllib.parse.urlparse(self.path)
         if u.path.startswith("/api/"):
             return self.api_get(u.path, urllib.parse.parse_qs(u.query))
@@ -428,6 +457,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def api_get(self, path, q):
         if path == "/api/status":
             return self.json(status(self.logged_in()))
+        if path == "/api/ping":  # open pages say they're still there (see idle_watch)
+            return self.send(204)
         if not self.logged_in():
             return self.err("Please sign in.", 401)
         if path == "/api/job":
@@ -441,6 +472,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             p = paths.config(name)
             text = open(p, encoding="utf-8").read() if os.path.exists(p) else ""
             return self.json({"name": name, "content": text})
+        if path == "/api/update":  # newer version on GitHub? (daily, or now with ?force=1)
+            force = bool(q.get("force"))
+            if not force and not settings.load().get("update_check"):
+                return self.json({"current": version.VERSION, "off": True})
+            return self.json(updates.check(force))
         if path == "/api/import/info":
             return self.json(import_info())
         if path == "/api/recipes":
@@ -461,6 +497,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # ---- POST
     def do_POST(self):
+        STATE["last_seen"] = now()
         if self.headers.get("X-BFR") != "1":  # blocks cross-site form posts
             return self.err("Forbidden.", 403)
         n = int(self.headers.get("Content-Length") or 0)
@@ -491,6 +528,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         time.sleep(0.6)
 
     def api_post(self, path, b):
+        if path == "/api/app-seen":  # a page was opened as an installed app (no brew data; just a time)
+            os.makedirs(DATA, exist_ok=True)
+            with open(APP_SEEN, "w", encoding="utf-8") as f:
+                json.dump({"seen": now()}, f)
+            return self.json({"ok": True})
         if path == "/api/stop":  # used by desktop.py --stop; only works with the token it started the server with
             tok = STATE.get("stop_token") or ""
             if (len(tok) < 32 or self.client_address[0] not in ("127.0.0.1", "::1")
@@ -748,6 +790,8 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8642)
     ap.add_argument("--proxy", action="store_true", help="trust X-Forwarded-For/-Proto from a reverse proxy")
+    ap.add_argument("--idle-exit", type=int, default=0, metavar="SECONDS",
+                    help="stop when no page has been open for this long (used by the desktop launcher)")
     a = ap.parse_args()
     STATE["proxy"] = a.proxy
     os.makedirs(OUT, exist_ok=True)
@@ -765,6 +809,8 @@ def main():
         raise SystemExit(f"Can't use port {a.port} ({e.strerror or e}). Brewfather Reports (or another program) is probably "
                          f"already running there: close it, or start this one with --port {a.port + 1}.")
     STATE["server"] = srv
+    if a.idle_exit > 0:
+        threading.Thread(target=idle_watch, args=(max(a.idle_exit, 120),), daemon=True).start()
     threading.Thread(target=scheduler, daemon=True).start()
     host = "localhost" if a.host in ("127.0.0.1", "0.0.0.0", "::") else a.host
     print(f"{version.NAME} {version.VERSION} - {version.COPYRIGHT.replace(chr(169), '(c)')}")
@@ -772,10 +818,24 @@ def main():
     if STATE["setup_code"]:
         print(f"First-time setup code: {STATE['setup_code']}")
     sys.stdout.flush()
+    desktop_file = os.path.join(DATA, "desktop.json")  # how desktop.py --stop finds this server
+    if STATE["stop_token"]:
+        tmp = desktop_file + f".{os.getpid()}"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"pid": os.getpid(), "port": a.port, "token": STATE["stop_token"]}, f)
+        os.replace(tmp, desktop_file)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        try:
+            with open(desktop_file, encoding="utf-8") as f:
+                mine = json.load(f).get("token") == STATE["stop_token"] != ""
+            if mine:
+                os.remove(desktop_file)
+        except (OSError, ValueError):
+            pass
 
 
 if __name__ == "__main__":

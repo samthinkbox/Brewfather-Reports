@@ -24,8 +24,8 @@ Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`)
 |---|---|
 | `start.bat`, `start.sh` | Run `app/server.py`. |
 | `install-app.bat`, `install-app.sh` | `desktop.py --install --autostart`: Start Menu/desktop shortcuts (Windows), app menu entry (Linux). |
-| `app/desktop.py` | Desktop launcher: starts the server detached (pythonw, log in `data/server.log`, pid/port/stop token in `data/desktop.json`) and opens Edge/Chrome with `--app=`. `--install`, `--uninstall`, `--stop`, `--server-only`. |
-| `app/pwa.py` | Installable-app files served without sign-in: `manifest.webmanifest`, `sw.js` (`templates/sw.js`, offline note only, no cache) and icons in `templates/icons/` (drawn by `tools/make_icons.py`). `layout.HEAD` links them. |
+| `app/desktop.py` | Desktop launcher: starts the server detached (pythonw, log in `data/server.log`; the server itself writes pid/port/stop token to `data/desktop.json` and removes it on exit; `data/desktop.lock` stops a double-click starting two). `--stop` uses the token, then ends any server from this folder or listening on the port (start.bat ones too) and opens Edge/Chrome with `--app=`. `--install`, `--uninstall`, `--stop`, `--server-only`. It starts the server with `--idle-exit 300` (not with `--server-only`, the sign-in start): pages on localhost ping `/api/ping` every minute from `layout.HEAD`, and the server shuts down when no request has come for that long and no job is running. |
+| `app/pwa.py` | Installable-app files served without sign-in: `manifest.webmanifest`, `sw.js` (`templates/sw.js`, offline note only, no cache) and icons in `templates/icons/` (drawn by `tools/make_icons.py`). `layout.HEAD` links them and keeps the browser's install prompt as `window.bfrInstall` for the Admin page's "Install as app" button. Pages opened as an installed app (display-mode standalone) or on `appinstalled` POST `/api/app-seen` (no sign-in; writes `data/app_seen.json`); `status.appInstalled` (seen in the last 60 days) hides the button in every browser. |
 | `app/server.py` | Stdlib web server: Admin page, report pages, JSON API, job runner, scheduler. |
 | `app/run.py` | Fetch and build without the server (`--offline`, `--update-hops`). |
 | `app/fetch.py`, `app/brewfather.py` | API calls; writes `data/batches.json`. `load_env()` reads `.env`. |
@@ -36,6 +36,7 @@ Repo: https://github.com/samthinkbox/Brew-History-for-Brewfather (branch `main`)
 | `app/recipe_parse.py` | Rule-based reader for pasted recipes (`parse`), `from_json` (AI or pasted JSON), the AI `prompt`. |
 | `app/recipe_import.py` | Import page logic: template, matching, `questions`, `build` (scaling + Brewfather recipe), `upload`. |
 | `app/ai_parse.py` | Optional AI reader: Claude, ChatGPT, Gemini, Copilot (GitHub Models / Azure OpenAI) over urllib. |
+| `app/updates.py` | Update check: GitHub `releases/latest` of `version.REPO`, at most daily (cache `data/update.json`), setting `update_check`; `GET /api/update[?force=1]` (signed in); Admin shows a card when newer. `BFR_UPDATE_API` env points it at a test server. Releases: tag `vX.Y.Z` with the package zip attached. The repo is private, so the check reports "No versions have been published" until it's public. |
 | `app/settings.py` | `data/settings.json` with `DEFAULTS` (only known keys are kept). |
 | `app/next_brew.py` | Owner's personal recipe ideas; `--upload` creates them in Brewfather. Not in the package. |
 | `templates/` | Page templates (`report.html`, `versions.html`, `next_brew.html`, `import.html`, `admin.html`, `terms.html`) and `hop_radar.js`. |

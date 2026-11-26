@@ -6,9 +6,10 @@ Reports on your own brewing history from your Brewfather account: hops, malt, wa
 recipe versions and hop flavour charts. It runs on your own computer or server with your own
 Brewfather API key, and your data stays there.
 
-**New: runs as a desktop app.** Install it with one double-click (`install-app.bat` on Windows) and it gets
-a Start Menu and desktop shortcut with its own icon, and opens in its own window with no tabs or address
-bar. You can also install it from Chrome or Edge like any web app. See [Desktop app](#desktop-app).
+**New: runs as a desktop app.** One double-click (`install-app.bat` on Windows) gives it a Start Menu and
+desktop shortcut with its own icon. It opens in its own window with no tabs or address bar, needs no server
+window, and closes down by itself when you're done. In Edge or Chrome an **Install as app** button on the Admin
+page also adds it to your apps. See [Desktop app](#desktop-app).
 
 ## Install
 
@@ -29,23 +30,87 @@ It then downloads your brews and builds the pages. If you used `start.bat`, keep
 
 ## Desktop app
 
-You can run it like an app in its own window instead of a browser tab:
+Brewfather Reports is a small web server plus pages, so the "app" is the server running quietly in the background
+and a browser window with no tabs or address bar showing the pages. Nothing extra is installed: it uses the Python
+you already have and the Edge or Chrome on your computer.
 
-- **Windows:** double-click `install-app.bat`. It adds **Brewfather Reports** to the Start Menu and your desktop, a
-  **Stop Brewfather Reports** shortcut to the Start Menu, and starts the server quietly when you sign in.
-  The shortcut starts the server (if it isn't running) and opens the app in an Edge or Chrome window with no tabs or address bar.
-  The first time, the setup code is filled in for you.
-- **Linux:** run `./install-app.sh` to add it to your applications menu.
-- **Mac, or any computer:** with the server running, open http://localhost:8642 in Chrome or Edge and choose
-  **Install Brewfather Reports** from the browser menu (or the install icon in the address bar).
+### Windows
 
-An installed app still needs the server, so use the shortcut, `start.bat`/`start.sh`, or the sign-in start.
-Without it, the app shows "Brewfather Reports isn't running". The server's output is in `data/server.log`.
-`install-app.bat` also starts the server when you sign in to Windows, so an app installed from the browser opens
-straight away. For the shortcuts only, run `python app\desktop.py --install` instead.
-To remove the shortcuts: `python app/desktop.py --uninstall`.
+1. Double-click **`install-app.bat`** in the Brewfather Reports folder. It adds:
+   - **Brewfather Reports** to the Start Menu and your desktop, with the hop icon;
+   - **Stop Brewfather Reports** to the Start Menu (in the Brewfather Reports folder);
+   - a sign-in start, so the server is already running whenever you open the app.
+     For the shortcuts without that, run `python app\desktop.py --install` instead.
+2. Open **Brewfather Reports** from the Start Menu or desktop. It starts the server if it isn't running and opens
+   the app window. The first time, the Admin page's setup code is already filled in.
+
+Opening the shortcut twice is fine: it only ever starts one server, and otherwise just opens another window.
+
+### Install as app (Edge or Chrome, Windows, Mac or Linux)
+
+This puts Brewfather Reports with your other apps (Start Menu, taskbar pinning, Launchpad on a Mac) the way the
+browser installs any web app.
+
+- The easy way: open the **Admin** page in an ordinary Edge or Chrome window and click **Install as app** at the top.
+  The button only shows in Edge and Chrome, and only while it isn't installed yet. Once the installed app has been
+  opened, the server remembers it, so the button stays hidden in every browser: installed from Edge, viewed in Chrome,
+  no button. If you uninstall the app, the button comes back after 60 days without it being opened.
+- Or from the browser itself, at http://localhost:8642 in an ordinary window (not the app window, whose menu leaves it out):
+  - the **install icon** at the right end of the address bar (a screen or square with a down arrow), or
+  - **Edge:** **⋯** › **Apps** › **Install Brewfather Reports** (in some versions **Apps** is under **⋯** › **More tools**);
+  - **Chrome:** **⋮** › **Cast, save, and share** › **Install Brewfather Reports…**
+
+The installed app needs the server running. If it isn't, the app shows "Brewfather Reports isn't running" with a
+Try again button: open the Brewfather Reports shortcut (or `start.bat` / `start.sh`), then try again.
+
+### Linux and Mac
+
+- **Linux:** run `./install-app.sh` to add Brewfather Reports to your applications menu (and start the server when
+  you sign in). It opens in Chrome, Chromium, Edge or Brave if you have one, otherwise your default browser.
+- **Mac:** run `./start.sh`, open http://localhost:8642 in Chrome or Edge and use **Install as app** (above). To have
+  the server running whenever you open it, add `start.sh` to System Settings › General › Login Items.
+
+### Closing it down
+
+- **Just close the app window.** A server started by the shortcut closes down by itself about five minutes after
+  the last Brewfather Reports window or tab is closed. It waits for a fetch or rebuild to finish first.
+- **Stop Brewfather Reports** (Start Menu) closes it down straight away and says "Brewfather Reports is closed down."
+  It stops the server however it was started: the shortcut, the sign-in start or `start.bat`.
+  From a command line: `python app/desktop.py --stop`.
+- The server from the sign-in start keeps running until you use Stop or sign out, so the app always opens straight away.
+
+### Good to know
+
+- **Task Manager:** the server is **Python** (`pythonw.exe`) under Background processes, using about 30–40 MB.
+  The window is listed under **Microsoft Edge** (or Chrome), or under its own name once installed as an app.
+- **Browser:** Edge is used first (every Windows 10 and 11 PC has it), then Chrome, Brave or Chromium. With none of
+  those, it opens in your default browser as an ordinary tab, and everything still works.
+- **Port:** 8642. The shortcut checks it first: if Brewfather Reports is already there it reuses it, and if another
+  program has it you get a message instead of a clash. It never moves to another port by itself, because your
+  sign-in and the installed app belong to that exact address. To use another port, run
+  `python app\desktop.py --install --port 8643` and the shortcuts are rewritten for it.
+- **Log:** the server's output (normally in its window) goes to `data/server.log`.
+- **Remove the shortcuts:** `python app/desktop.py --uninstall`. To remove an app installed from the browser, right-click
+  it in the Start Menu and choose Uninstall, or use the browser's Apps page (`edge://apps` or `chrome://apps`).
 
 To run it on a public web server, including a Plesk VPS alongside other sites, see [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## Updating
+
+New versions are published as releases on GitHub. Once a day, the Admin page asks GitHub whether there is a newer one,
+and if so shows **Version x.y.z is available** at the top with what's new and a **Download** button. Only a plain
+request for the latest version number goes to GitHub: nothing about you or your brews. Turn it off, or check
+straight away with **Check now**, in Admin › Settings.
+
+To update:
+
+1. Close Brewfather Reports: **Stop Brewfather Reports** in the Start Menu, or close the `start.bat` window.
+2. Download the new version's zip and unzip it **over** your Brewfather Reports folder, replacing the files. If you
+   cloned it with git, run `git pull` in the folder instead.
+3. Open Brewfather Reports again (the shortcut or `start.bat`).
+
+Your brews, settings, admin password and keys (`data/` and `.env`) and your own `exclude.txt` and `families.txt` are
+not in the zip, so they are kept. The desktop shortcuts keep working as long as the folder stays where it is.
 
 ## Pages
 
@@ -73,6 +138,9 @@ CSV files (`brews.csv`, `hops.csv`, `malts.csv`) can be downloaded from the Admi
 
 ## Admin page
 
+- **New version:** when a newer version has been released, a card at the top says so, with what's new and a
+  Download button. See [Updating](#updating).
+- **Install as app:** shown in Edge and Chrome until the app is installed (in any browser). See [Desktop app](#desktop-app).
 - **Data:** fetch from Brewfather and rebuild, rebuild from saved data, or update hop data. The progress log shows as it runs.
 - **Brews in the reports:** untick a brew to leave it out (it is saved in `exclude.txt`). Brews with `#noreport` in a
   Brewfather batch note are always left out.
@@ -81,6 +149,7 @@ CSV files (`brews.csv`, `hops.csv`, `malts.csv`) can be downloaded from the Admi
   - Your tap water profile, used in the Water section.
   - Automatic fetching (every 1 to 24 hours, while the server runs).
   - Whether the report pages need a sign-in. They are private by default.
+  - Check for new versions (on by default), with a **Check now** button.
 - **Recipe families:** which brews belong together on the Recipe versions page (`families.txt`).
 - **Extra hop flavours:** aroma scores for hops HopDatabase doesn't have (`hop_flavours_extra.json`).
 - **Standard recipe for imports:** the Brewfather recipe that imported recipes are built on (your latest brew if you don't choose one).
@@ -142,7 +211,8 @@ paste into any chat AI in your browser; paste its JSON answer back into the box 
 python app/server.py              # the web server (Admin page and reports); start.bat / start.sh run this
 python app/desktop.py             # start the server in the background and open the app window
 python app/desktop.py --install   # Start Menu and desktop shortcuts (add --autostart to start at sign-in)
-python app/desktop.py --stop      # stop the server the app window started (--uninstall removes the shortcuts)
+python app/desktop.py --stop      # close down Brewfather Reports however it was started (--uninstall removes the shortcuts)
+python app/server.py --idle-exit 300   # stop when no page has been open for 5 minutes (the shortcut uses this)
 python app/run.py                 # fetch from Brewfather and build the pages without the server
 python app/run.py --offline       # rebuild from the saved data
 python app/run.py --update-hops   # download the latest HopDatabase hop data first
@@ -174,14 +244,17 @@ brewer, so it is not included in the package. Turn the page on in Admin › Sett
 
 ## Building the package
 
-`python tools/build_package.py` writes `dist/brewfather-reports-<version>.zip`. It leaves out `.env`, `data/`,
+`python tools/build_package.py` writes `dist/brewfather-reports-<version>.zip`.
+To release a version: raise `VERSION` in `app/version.py`, build the package, then publish a GitHub release whose tag is
+the version (for example `v1.3.0`) with the zip attached:
+`gh release create v1.3.0 dist/brewfather-reports-1.3.0.zip --title "1.3.0" --notes "What's new…"`.
+The Admin page's update check reads the latest release, so it needs the repository (or its releases) to be public. It leaves out `.env`, `data/`,
 `output/`, `next_brew.py` and your `exclude.txt` and `families.txt`. The version number is in `app/version.py`.
 
 
 ## Shutting app down
 
-If you started it from the desktop shortcut, there is no server window: use **Stop Brewfather Reports** in the Start Menu
-(or `python app/desktop.py --stop`). Closing the app window leaves the server running, ready for next time.
+If you use the desktop app, see [Closing it down](#closing-it-down): close the window, or use **Stop Brewfather Reports**.
 
 If you started it with start.bat:
 
